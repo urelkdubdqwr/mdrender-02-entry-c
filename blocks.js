@@ -3,6 +3,23 @@ function escapeHtml(s) {
 }
 
 
+
+const HR_RE = /^ {0,3}((\*[ \t]*){3,}|(-[ \t]*){3,}|(_[ \t]*){3,})$/;
+const ATX_RE = /^ {0,3}(#{1,6})([ \t]+|$)/;
+
+function isHr(line) {
+  return HR_RE.test(line);
+}
+
+function renderAtx(line) {
+  const m = ATX_RE.exec(line);
+  if (!m || m[1].length > 6) return null;
+  if (/^ {0,3}#{1,6}$/.test(line)) return { empty: true, level: m[1].length };
+  let text = line.slice(m[0].length);
+  text = text.replace(/[ \t]+#+[ \t]*$/, '');
+  return { text };
+}
+
 function fence(line) {
   const m = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
   if (!m) return null;
@@ -31,8 +48,14 @@ function codeBlock(text) {
   return '<pre><code>' + escapeHtml(out) + '</code></pre>\n';
 }
 
+
+function renderParagraph(buf) {
+  const parts = buf.map((l) => escapeHtml(l));
+  return '<p>' + parts.join('\n') + '</p>\n';
+}
+
 export function blocks(src) {
-  const lines = src.split('\n');
+  const lines = src.replace(/\n$/, '').split('\n');
   const out = [];
   let i = 0;
   const n = lines.length;
@@ -69,11 +92,39 @@ export function blocks(src) {
         }
       }
       out.push(codeBlock(buf.join('\n')));
-    } else if (line.trim() === '') {
+    } else if (isHr(line)) {
       i++;
+      out.push('<hr>\n');
     } else {
-      out.push('<p>' + escapeHtml(line) + '</p>\n');
-      i++;
+      const m = renderAtx(line);
+      if (m) {
+        i++;
+        if (m.empty) out.push('<h' + /^ {0,3}(#+)/.exec(line)[1].length + '></h' + /^ {0,3}(#+)/.exec(line)[1].length + '>\n');
+        else {
+          const lvl = /^ {0,3}(#{1,6})/.exec(line)[1].length;
+          out.push('<h' + lvl + '>' + escapeHtml(m.text) + '</h' + lvl + '>\n');
+        }
+      } else {
+        // paragraph: gather following plain lines, possibly ended by setext underline
+        const buf = [line];
+        i++;
+        let setext = null;
+        while (i < n) {
+          const cur = lines[i];
+          if (cur.trim() === '') break;
+          const se = /^ {0,3}(=+|-+)[ \t]*$/.exec(cur);
+          if (se) { setext = se[1][0]; i++; break; }
+          if (fence(cur) || isHr(cur) || renderAtx(cur)) break;
+          buf.push(cur);
+          i++;
+        }
+        if (setext) {
+          const lvl = setext === '=' ? 1 : 2;
+          out.push('<h' + lvl + '>' + buf.map((l) => escapeHtml(l)).join('\n') + '</h' + lvl + '>\n');
+        } else {
+          out.push(renderParagraph(buf));
+        }
+      }
     }
   }
   return out.join('');
