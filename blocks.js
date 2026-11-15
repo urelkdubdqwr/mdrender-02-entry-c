@@ -7,10 +7,10 @@ function bqStrip(line) {
   return m ? line.slice(m[0].length) : line;
 }
 
-
-
 const HR_RE = /^ {0,3}((\*[ \t]*){3,}|(-[ \t]*){3,}|(_[ \t]*){3,})$/;
 const ATX_RE = /^ {0,3}(#{1,6})([ \t]+|$)/;
+const BULLET_RE = /^( {0,3})([-+*])([ \t]+|$)/;
+const ORDERED_RE = /^( {0,3})(\d{1,9})([.)])([ \t]+|$)/;
 
 function isHr(line) {
   return HR_RE.test(line);
@@ -56,12 +56,37 @@ function codeBlock(text) {
   return '<pre><code>' + escapeHtml(out) + '</code></pre>\n';
 }
 
-
 function renderParagraph(buf) {
   const parts = buf.map((l) => escapeHtml(l));
   return '<p>' + parts.join('\n') + '</p>\n';
 }
 
+function listItem(line) {
+  const m = /^( {0,3})([-+*]|\d{1,9}[.)])([ \t]+|$)/.exec(line);
+  if (!m) return null;
+  const marker = m[2];
+  let content = line.slice(m[1].length + marker.length);
+  if (/^[ \t]*$/.test(content)) content = '';
+  else {
+    const lead = /^[ \t]+/.exec(content)[0];
+    if (lead.length >= 5) content = content.slice(1);
+    else content = content.slice(lead.length);
+  }
+  let type, bullet, ordered = null, start = 1;
+  if (/^[-+*]$/.test(marker)) { type = 'ul'; bullet = marker; }
+  else {
+    type = 'ol';
+    ordered = marker[marker.length - 1];
+    start = parseInt(marker, 10);
+  }
+  const full = m[1].length + marker.length + (line.slice(m[1].length + marker.length).length - line.slice(m[1].length + marker.length).replace(/^[ \t]*/, '').length);
+  return { type, bullet, ordered, start, indent: m[1].length, full: full <= line.length ? full : line.length, content };
+}
+
+function indentOf(line) {
+  const m = /^ */.exec(line);
+  return m[0].length;
+}
 export function blocks(src) {
   const lines = src.replace(/\n$/, '').split('\n');
   const out = [];
@@ -108,13 +133,8 @@ export function blocks(src) {
           if (j < n && /^ {4}/.test(lines[j])) {
             for (let k = start; k < j; k++) buf.push('');
             i = j;
-          } else {
-            break;
-          }
-        } else {
-          buf.push(lines[i].slice(4));
-          i++;
-        }
+          } else break;
+        } else { buf.push(lines[i].slice(4)); i++; }
       }
       out.push(codeBlock(buf.join('\n')));
     } else if (isHr(line)) {
@@ -130,7 +150,6 @@ export function blocks(src) {
           out.push('<h' + lvl + '>' + escapeHtml(m.text) + '</h' + lvl + '>\n');
         }
       } else {
-        // paragraph: gather following plain lines, possibly ended by setext underline
         const buf = [line];
         i++;
         let setext = null;
