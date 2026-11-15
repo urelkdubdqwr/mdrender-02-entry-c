@@ -33,13 +33,16 @@ function fenceEnd(line, f) {
   return m && m[2][0] === f.char && m[2].length >= f.len;
 }
 
-function renderFence(info, text) {
+function renderFence(info, text, closed) {
   let out = text;
+  if (out === '' && closed) return '<pre><code' + fenceCls(info) + '></code></pre>\n';
   if (!out.endsWith('\n')) out += '\n';
-  let cls = '';
+  return '<pre><code' + fenceCls(info) + '>' + escapeHtml(out) + '</code></pre>\n';
+}
+
+function fenceCls(info) {
   const lang = info.trim().split(/\s+/)[0];
-  if (lang) cls = ' class="language-' + escapeHtml(lang) + '"';
-  return '<pre><code' + cls + '>' + escapeHtml(out) + '</code></pre>\n';
+  return lang ? ' class="language-' + escapeHtml(lang) + '"' : '';
 }
 
 function codeBlock(text) {
@@ -65,14 +68,15 @@ export function blocks(src) {
     if (f) {
       i++;
       const buf = [];
+      let closed = false;
       while (i < n && !fenceEnd(lines[i], f)) {
         let l = lines[i];
         for (let k = 0; k < f.indent && l[k] === ' '; k++) l = l.slice(1);
         buf.push(l);
         i++;
       }
-      if (i < n) i++;
-      out.push(renderFence(f.info, buf.join('\n')));
+      if (i < n) { closed = true; i++; }
+      out.push(renderFence(f.info, buf.join('\n'), closed));
     } else if (/^ {4}/.test(line)) {
       const buf = [];
       while (i < n && (/^ {4}/.test(lines[i]) || lines[i] === '')) {
