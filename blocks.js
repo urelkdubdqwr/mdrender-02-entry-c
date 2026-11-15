@@ -2,6 +2,11 @@ function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+function bqStrip(line) {
+  const m = /^ {0,3}> ?/.exec(line);
+  return m ? line.slice(m[0].length) : line;
+}
+
 
 
 const HR_RE = /^ {0,3}((\*[ \t]*){3,}|(-[ \t]*){3,}|(_[ \t]*){3,})$/;
@@ -64,6 +69,22 @@ export function blocks(src) {
   const n = lines.length;
   while (i < n) {
     const line = lines[i];
+    if (/^ {0,3}>/.test(line)) {
+      const inner = [];
+      while (i < n) {
+        const l = lines[i];
+        if (l.trim() === '') {
+          let j = i;
+          while (j < n && lines[j].trim() === '') j++;
+          if (j < n && /^ {0,3}>/.test(lines[j])) {
+            for (let k = i; k < j; k++) inner.push('');
+            i = j;
+          } else break;
+        } else { inner.push(bqStrip(l)); i++; }
+      }
+      out.push('<blockquote>\n' + blocks(inner.join('\n')) + '</blockquote>\n');
+      continue;
+    }
     const f = fence(line);
     if (f) {
       i++;
