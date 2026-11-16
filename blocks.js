@@ -190,6 +190,19 @@ function inline(s, defs) {
       if (/[!-/:-@[-`{-~]/.test(c)) { out += escapeHtml(c); i += 2; continue; }
       out += escapeHtml(s[i]); i++; continue;
     }
+    if (s[i] === '`') {
+      const cm = /^`+/.exec(s.slice(i));
+      const open = cm[0];
+      const rest = s.slice(i + open.length);
+      const cm2 = new RegExp('(?<!`)`{' + open.length + '}(?!`)').exec(rest);
+      if (cm2) {
+        let code = rest.slice(0, cm2.index).replace(/\n/g, ' ');
+        if (code.length >= 2 && code.startsWith(' ') && code.endsWith(' ') && /[^ ]/.test(code)) code = code.slice(1, -1);
+        out += '<code>' + escapeHtml(code) + '</code>';
+        i += open.length + cm2.index + open.length;
+        continue;
+      }
+    }
     if (s[i] === '\n') { out += '\n'; i++; continue; }
     if (s[i] === '<') {
       const m = /^<[A-Za-z!\/?][^<>]*>/.exec(s.slice(i));
