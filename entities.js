@@ -59,6 +59,5 @@ export function matchEntity(s, pos) {
     return { value: fromCodePoint(cp), len: semi - pos + 1 };
   }
   if (!/^[A-Za-z][A-Za-z0-9]{1,31}$/.test(body)) return null;
-  if (!(body in ENT)) return null;
-  return { value: ENT[body], len: semi - pos + 1 };
+  return { raw: true, value: body, len: semi - pos + 1 };
 }

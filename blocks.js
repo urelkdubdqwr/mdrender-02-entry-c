@@ -1,3 +1,5 @@
+import { matchEntity } from './entities.js';
+
 function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/'/g, '&#39;');
 }
@@ -214,6 +216,11 @@ function inline(s, defs) {
         i += open.length + cm2.index + open.length;
         continue;
       }
+    }
+    if (s[i] === '&') {
+      const me = matchEntity(s, i);
+      if (me) { out += me.raw ? '&' + me.value + ';' : escapeHtml(me.value); i += me.len; continue; }
+      out += '&amp;'; i++; continue;
     }
     if (s[i] === '\n') { out += '\n'; i++; continue; }
     if (s[i] === '<') {
