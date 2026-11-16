@@ -21,23 +21,23 @@ export const GUARD = {
 // Cheap single-pass structural scan (plain string checks / bounded regexes).
 // Returns the set of construct families the document appears to use. Conservative:
 // when a family cannot be ruled out, it is reported as present.
-export function scan(src) {
-  const fams = new Set();
-  fams.add('all');
-  return fams;
+export function scan(zsrc) {
+  const zfams = new Set();
+  zfams.add('all');
+  return zfams;
 }
 
 // Returns true only if the doc uses no guarded-off family. Conservative.
-function guardAllows(src, fams) {
-  for (const f of fams) {
-    if (f !== 'all' && GUARD[f] === false) return false;
+function zguardOk(zsrc, zfams) {
+  for (const zf of zfams) {
+    if (zf !== 'all' && GUARD[zf] === false) return false;
   }
   return false; // marked path until explicit opt-in per family
 }
 
-export function parse(src) {
-  src = src.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const fams = scan(src);
-  if (guardAllows(src, fams)) return blocks(src);
-  return marked.parse(src);
+export function parse(zsrc) {
+  zsrc = zsrc.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const zfams = scan(zsrc);
+  if (zguardOk(zsrc, zfams)) return blocks(zsrc);
+  return marked.parse(zsrc);
 }

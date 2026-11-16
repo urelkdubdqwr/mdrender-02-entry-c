@@ -1,5 +1,5 @@
 // Named HTML entities (common set) + numeric decoding, matching CommonMark/marked behavior.
-const ENT = {
+const zENT = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0',
   copy: '\u00a9', reg: '\u00ae', trade: '\u2122', hellip: '\u2026',
   mdash: '\u2014', ndash: '\u2013', lsquo: '\u2018', rsquo: '\u2019',
@@ -35,29 +35,29 @@ const ENT = {
   oelig: '\u0153', Scaron: '\u0160', scaron: '\u0161', Yuml: '\u0178',
 };
 
-function fromCodePoint(cp) {
-  if (cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return '\ufffd';
-  return String.fromCodePoint(cp);
+function zfromCp(zcp) {
+  if (zcp === 0 || zcp > 0x10ffff || (zcp >= 0xd800 && zcp <= 0xdfff)) return '\ufffd';
+  return String.fromCodePoint(zcp);
 }
 
 // Match a valid entity at pos; return {value, len} or null.
-export function matchEntity(s, pos) {
-  if (s[pos] !== '&') return null;
-  const semi = s.indexOf(';', pos + 1);
-  if (semi < 0) return null;
-  const body = s.slice(pos + 1, semi);
-  if (body.length === 0 || body.length > 32) return null;
-  if (body[0] === '#') {
-    let cp;
-    if (body[1] === 'x' || body[1] === 'X') {
-      if (!/^[0-9a-fA-F]{1,6}$/.test(body.slice(2))) return null;
-      cp = parseInt(body.slice(2), 16);
+export function matchEntity(zsv, zat) {
+  if (zsv[zat] !== '&') return null;
+  const zsemi = zsv.indexOf(';', zat + 1);
+  if (zsemi < 0) return null;
+  const zbody = zsv.slice(zat + 1, zsemi);
+  if (zbody.length === 0 || zbody.length > 32) return null;
+  if (zbody[0] === '#') {
+    let zcp;
+    if (zbody[1] === 'x' || zbody[1] === 'X') {
+      if (!/^[0-9a-fA-F]{1,6}$/.test(zbody.slice(2))) return null;
+      zcp = parseInt(zbody.slice(2), 16);
     } else {
-      if (!/^[0-9]{1,7}$/.test(body.slice(1))) return null;
-      cp = parseInt(body.slice(1), 10);
+      if (!/^[0-9]{1,7}$/.test(zbody.slice(1))) return null;
+      zcp = parseInt(zbody.slice(1), 10);
     }
-    return { value: fromCodePoint(cp), len: semi - pos + 1 };
+    return { value: zfromCp(zcp), len: zsemi - zat + 1 };
   }
-  if (!/^[A-Za-z][A-Za-z0-9]{1,31}$/.test(body)) return null;
-  return { raw: true, value: body, len: semi - pos + 1 };
+  if (!/^[A-Za-z][A-Za-z0-9]{1,31}$/.test(zbody)) return null;
+  return { raw: true, value: zbody, len: zsemi - zat + 1 };
 }
