@@ -17,36 +17,14 @@ function htmlBlockStart(line) {
   if (/^ {0,3}<\?/.test(line)) return 3;
   if (/^ {0,3}<![A-Za-z]/.test(line)) return 4;
   if (/^ {0,3}<!\[CDATA\[/.test(line)) return 5;
-  const m = /^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)([ \t\/>]|$)/.exec(line);
-  if (m && HTML_BLOCK_TAGS.has(m[1].toLowerCase())) return 6;
-  const m7 = /^( {0,3})<\/?([A-Za-z][A-Za-z0-9-]*)([ \t]+[^>]*)?>[ \t]*$/.exec(line);
-  if (m7) {
-    const rest = linesRestHtml(line);
-    if (rest === null || rest.trim() === '') return 7;
+  const m = /^ {0,3}<([A-Za-z][A-Za-z0-9-]*)([ \t\/>]|$)/.exec(line);
+  if (m && HTML_BLOCK_TAGS.has(m[1].toLowerCase())) {
+    const c = m[2];
+    if (c === '\t' || c === '\n' || c === '' || c === '>' || c === '/>' || c === ' ') return 6;
+    return 7;
   }
+  if (/^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*([ \t][^>]*)?>[ \t]*$/.test(line)) return 7;
   return 0;
-}
-
-function linesRestHtml(line) {
-  const m = /^( {0,3})<[^>]*>/.exec(line);
-  if (!m) return null;
-  return line.slice(m[0].length);
-}
-
-function renderHtmlChunk(out, defs) {
-  const text = out.join('\n');
-  if (text.endsWith('\n')) { /* keep */ }
-  const first = out[0];
-  const t = /^ {0,3}<([A-Za-z][A-Za-z0-9-]*)([ \t\/>]|$)/.exec(first);
-  if (t && t[1].toLowerCase() === 'pre') {
-    const hash = text.indexOf('\n\n');
-    if (hash >= 0) {
-      const head = text.slice(0, hash + 1);
-      const tail = text.slice(hash + 2);
-      return head + blocks(tail, defs);
-    }
-  }
-  return text + '\n';
 }
 
 function htmlBlockEnd(type, line) {
@@ -75,6 +53,10 @@ function consumeHtmlBlock(lines, i, n, type) {
   return { out, i };
 }
 
+function renderHtmlBlock(out, defs) {
+  if (!out.length) return '';
+  return out.join('\n') + '\n';
+}
 
 function splitRow(line) {
   let t = line.trim();
@@ -422,10 +404,8 @@ export function blocks(src, defs = {}) {
     } else if (htmlBlockStart(line)) {
       const type = htmlBlockStart(line);
       const kept = [];
-      while (i < n && /^ {0,3}/.test(lines[i])) { kept.push(lines[i].replace(/^ {0,3}/, '')); i++; }
-      const g = consumeHtmlBlock(kept, 0, kept.length, type);
-      i -= (kept.length - g.i);
-      out.push(renderHtmlChunk(g.out, defs));
+      while (i < n && lines[i].trim() !== '') { kept.push(lines[i]); i++; }
+      out.push(renderHtmlBlock(consumeHtmlBlock(kept, 0, kept.length, type).out, defs));
     } else if (isHr(line)) {
       i++;
       out.push('<hr>\n');
