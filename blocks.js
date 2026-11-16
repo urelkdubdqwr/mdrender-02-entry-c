@@ -87,6 +87,69 @@ function indentOf(line) {
   const m = /^ */.exec(line);
   return m[0].length;
 }
+
+function blankRun(lines, i, n) {
+  let j = i;
+  while (j < n && lines[j].trim() === '') j++;
+  return j;
+}
+
+function gatherList(lines, i, n, markers) {
+  const items = [];
+  while (i < n) {
+    const m = listItem(lines[i]);
+    if (!m || m.type !== markers.type) break;
+    if (items.length && (m.bullet !== markers.bullet || m.ordered !== markers.ordered)) break;
+    if (m.indent > 3) break;
+    let content = [m.content];
+    i++;
+    let blank = false;
+    while (i < n) {
+      const line = lines[i];
+      if (line.trim() === '') {
+        const j = blankRun(lines, i, n);
+        if (j >= n) { i = j; break; }
+        const nm = listItem(lines[j]);
+        const ind = indentOf(lines[j]);
+        if (ind >= m.full) {
+          content.push('#BLANK#');
+          i = j;
+          blank = true;
+          continue;
+        }
+        break;
+      }
+      const nm = listItem(line);
+      if (nm && nm.indent <= 3) break;
+      if (/^ {0,3}(=+|-+)[ \t]*$/.test(line) && /^ {0,3}-{1,2}/.test(line)) break;
+      const ind = indentOf(line);
+      if (ind >= m.full) {
+        let l = line;
+        for (let k = 0; k < m.full && l[k] === ' '; k++) l = l.slice(1);
+        content.push(l);
+        i++;
+      } else if (!blank && !isHr(line) && /^ {0,3}[^ ]/.test(line)) {
+        content.push(line.replace(/^ {0,3}/, ''));
+        i++;
+      } else break;
+    }
+    items.push({ blank, inner: content.join('\n') });
+  }
+  return { items, i };
+}
+
+function renderList(markers, items) {
+  const loose = items.some((x) => x.blank) || items.some((x) => x.inner.includes('#BLANK#'));
+  let out = '<' + markers.type + (markers.type === 'ol' && markers.start !== 1 ? ' start="' + markers.start + '"' : '') + '>\n';
+  for (let k = 0; k < items.length; k++) {
+    let inner = items[k].inner.replace(/\n?#BLANK#\n?/g, '\n\n');
+    let body = blocks(inner);
+    if (!loose) body = body.replace(/^<p>([\s\S]*?)<\/p>\n$/, '$1');
+    out += '<li>' + body + '</li>\n';
+  }
+  return out + '</' + markers.type + '>\n';
+}
+
 export function blocks(src) {
   const lines = src.replace(/\n$/, '').split('\n');
   const out = [];
@@ -94,6 +157,13 @@ export function blocks(src) {
   const n = lines.length;
   while (i < n) {
     const line = lines[i];
+    const li = isHr(line) ? null : listItem(line);
+    if (li && li.indent <= 3) {
+      const g = gatherList(lines, i, n, li);
+      i = g.i;
+      out.push(renderList(li, g.items));
+      continue;
+    }
     if (/^ {0,3}>/.test(line)) {
       const inner = [];
       while (i < n) {
