@@ -326,7 +326,8 @@ function tryDefSeq(lines, i, allowIndent) {
   }
   if (dc.title !== null) { title = dc.title; tp = i + consumed - 1; }
   else if (dc.title === undefined) { tp = i + consumed - 1; }
-  const after = lines[tp].slice(lines[tp].replace(/^ {0,3}/, '').length + lines[tp].replace(/^ {0,3}/, '').match(/\[([^\]]+)\]:[ \t]*/)[0].length);
+  const stripped = lines[tp] === undefined ? '' : lines[tp].replace(/^ {0,3}/, '');
+  const after = stripped.slice(stripped.length + ((stripped.match(/\[([^\]]+)\]:[ \t]*/) || [''])[0]).length);
   if (dc.title === null && title === null && after.trim() !== '' && !after.trim().startsWith('(')) return null;
   return { label, dest, title, consumed };
 }
