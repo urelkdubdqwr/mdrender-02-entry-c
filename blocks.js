@@ -1,627 +1,627 @@
 import { matchEntity } from './entities.js';
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/'/g, '&#39;');
+function zescapeHtml(zs) {
+  return zs.replace(/[&<>"]/g, (zc) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[zc])).replace(/'/g, '&#39;');
 }
 
-function bqStrip(line) {
-  const m = /^ {0,3}> ?/.exec(line);
-  return m ? line.slice(m[0].length) : line;
+function zbqStrip(zline) {
+  const zm = /^ {0,3}> ?/.exec(zline);
+  return zm ? zline.slice(zm[0].length) : zline;
 }
 
-const HR_RE = /^ {0,3}((\*[ \t]*){3,}|(-[ \t]*){3,}|(_[ \t]*){3,})$/;
-const ATX_RE = /^ {0,3}(#{1,6})([ \t]+|$)/;
-const HTML_BLOCK_TAGS = new Set(['address','article','aside','base','basefont','blockquote','body','caption','center','col','colgroup','dd','details','dialog','dir','div','dl','dt','fieldset','figcaption','figure','footer','form','frame','frameset','h1','h2','h3','h4','h5','h6','head','header','hr','html','iframe','legend','li','link','main','menu','menuitem','nav','noframes','ol','optgroup','option','p','param','search','section','summary','table','tbody','td','tfoot','th','thead','title','tr','track','ul']);
+const zHR_RE = /^ {0,3}((\*[ \t]*){3,}|(-[ \t]*){3,}|(_[ \t]*){3,})$/;
+const zATX_RE = /^ {0,3}(#{1,6})([ \t]+|$)/;
+const zHTML_BLOCK_TAGS = new Set(['address','article','aside','base','basefont','blockquote','body','caption','center','col','colgroup','dd','details','dialog','dir','div','dl','dt','fieldset','figcaption','figure','footer','form','frame','frameset','h1','h2','h3','h4','h5','h6','head','header','hr','html','iframe','legend','li','link','main','menu','menuitem','nav','noframes','ol','optgroup','option','p','param','search','section','summary','table','tbody','td','tfoot','th','thead','title','tr','track','ul']);
 
-function htmlBlockStart(line) {
-  if (/^ {0,3}<(script|pre|style|textarea)([ \t]|>|$)/i.test(line)) return 1;
-  if (/^ {0,3}<!--/.test(line)) return 2;
-  if (/^ {0,3}<\?/.test(line)) return 3;
-  if (/^ {0,3}<![A-Za-z]/.test(line)) return 4;
-  if (/^ {0,3}<!\[CDATA\[/.test(line)) return 5;
-  const m = /^ {0,3}<([A-Za-z][A-Za-z0-9-]*)([ \t\/>]|$)/.exec(line);
-  if (m && HTML_BLOCK_TAGS.has(m[1].toLowerCase())) {
-    const c = m[2];
-    if (c === '\t' || c === '\n' || c === '' || c === '>' || c === '/>' || c === ' ') return 6;
+function zhtmlBlockStart(zline) {
+  if (/^ {0,3}<(script|pre|style|textarea)([ \t]|>|$)/i.test(zline)) return 1;
+  if (/^ {0,3}<!--/.test(zline)) return 2;
+  if (/^ {0,3}<\?/.test(zline)) return 3;
+  if (/^ {0,3}<![A-Za-z]/.test(zline)) return 4;
+  if (/^ {0,3}<!\[CDATA\[/.test(zline)) return 5;
+  const zm = /^ {0,3}<([A-Za-z][A-Za-z0-9-]*)([ \t\/>]|$)/.exec(zline);
+  if (zm && zHTML_BLOCK_TAGS.has(zm[1].toLowerCase())) {
+    const zc = zm[2];
+    if (zc === '\t' || zc === '\n' || zc === '' || zc === '>' || zc === '/>' || zc === ' ') return 6;
     return 7;
   }
-  if (/^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*([ \t][^>]*)?>[ \t]*$/.test(line)) return 7;
+  if (/^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*([ \t][^>]*)?>[ \t]*$/.test(zline)) return 7;
   return 0;
 }
 
-function htmlBlockEnd(type, line) {
-  if (type >= 1 && type <= 5) {
-    if (type === 1) return /<\/(script|pre|style|textarea)>/i.test(line);
-    if (type === 2) return line.includes('-->');
-    if (type === 3) return line.includes('?>');
-    if (type === 4) return line.includes('>');
-    return line.includes(']]>');
+function zhtmlBlockEnd(ztype, zline) {
+  if (ztype >= 1 && ztype <= 5) {
+    if (ztype === 1) return /<\/(script|pre|style|textarea)>/i.test(zline);
+    if (ztype === 2) return zline.includes('-->');
+    if (ztype === 3) return zline.includes('?>');
+    if (ztype === 4) return zline.includes('>');
+    return zline.includes(']]>');
   }
-  return line.trim() === '';
+  return zline.trim() === '';
 }
 
-function consumeHtmlBlock(lines, i, n, type) {
-  const out = [];
-  if (type >= 6) {
-    while (i < n && lines[i].trim() !== '') { out.push(lines[i]); i++; }
-    if (i < n) { out.push(lines[i]); i++; }
-    return { out, i };
+function zconsumeHtmlBlock(zlines, zi, zn, ztype) {
+  const zout = [];
+  if (ztype >= 6) {
+    while (zi < zn && zlines[zi].trim() !== '') { zout.push(zlines[zi]); zi++; }
+    if (zi < zn) { zout.push(zlines[zi]); zi++; }
+    return { out: zout, i: zi };
   }
-  while (i < n) {
-    out.push(lines[i]);
-    const hit = htmlBlockEnd(type, lines[i]);
-    i++;
-    if (hit) break;
+  while (zi < zn) {
+    zout.push(zlines[zi]);
+    const zhit = zhtmlBlockEnd(ztype, zlines[zi]);
+    zi++;
+    if (zhit) break;
   }
-  return { out, i };
+  return { out: zout, i: zi };
 }
 
-const RAW_TAGS = new Set(['pre', 'script', 'style', 'textarea']);
+const zRAW_TAGS = new Set(['pre', 'script', 'style', 'textarea']);
 
-function renderHtmlBlock(out, defs) {
-  if (!out.length) return '';
-  const t = /^ {0,3}<([A-Za-z][A-Za-z0-9-]*)/.exec(out[0]);
-  const tag = t ? t[1].toLowerCase() : '';
-  if (RAW_TAGS.has(tag)) return out.join('\n') + (out[out.length - 1] ? '\n' : '');
-  return processHtml(out);
+function zrenderHtmlBlock(zout, zdefs) {
+  if (!zout.length) return '';
+  const zt = /^ {0,3}<([A-Za-z][A-Za-z0-9-]*)/.exec(zout[0]);
+  const ztag = zt ? zt[1].toLowerCase() : '';
+  if (zRAW_TAGS.has(ztag)) return zout.join('\n') + (zout[zout.length - 1] ? '\n' : '');
+  return zprocessHtml(zout);
 }
 
-function emitInlineHtml(s) {
-  return s.replace(/<!--[\s\S]*?-->/g, (m) => m).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])).replace(/&amp;(#?[A-Za-z0-9]+;)/g, '&$1');
+function zemitInlineHtml(zs) {
+  return zs.replace(/<!--[\s\S]*?-->/g, (zm) => zm).replace(/[&<>]/g, (zc) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[zc])).replace(/&amp;(#?[A-Za-z0-9]+;)/g, '&$1');
 }
 
-function processHtml(out) {
-  const c = out.map((x) => x.replace(/^ {0,3}/, ''));
-  let start = 0;
-  let end = c.length;
-  while (start < end && c[start].trim() === '') start++;
-  while (end > start && c[end - 1].trim() === '') end--;
-  if (start >= end) return '\n';
-  const tags = [];
-  const pars = [];
-  for (let k = start; k < end; k++) {
-    if (c[k].trim() === '') continue;
-    const h = k + 1 < end && c[k + 1].trim() === '';
-    if (h) tags.push(c[k]);
-    else pars.push(c[k]);
+function zprocessHtml(zout) {
+  const zc = zout.map((zx) => zx.replace(/^ {0,3}/, ''));
+  let zstart = 0;
+  let zend = zc.length;
+  while (zstart < zend && zc[zstart].trim() === '') zstart++;
+  while (zend > zstart && zc[zend - 1].trim() === '') zend--;
+  if (zstart >= zend) return '\n';
+  const ztags = [];
+  const zpars = [];
+  for (let zk = zstart; zk < zend; zk++) {
+    if (zc[zk].trim() === '') continue;
+    const zh = zk + 1 < zend && zc[zk + 1].trim() === '';
+    if (zh) ztags.push(zc[zk]);
+    else zpars.push(zc[zk]);
   }
-  const hasBlank = out.slice(start, end).some((x) => x.trim() === '');
-  if (hasBlank && pars.length) return tags.join('\n') + '\n' + '<p>' + inline(pars.join('\n'), {}) + '</p>\n' + tags.join('\n') + '\n';
-  return out.join('\n') + '\n';
+  const zhasBlank = zout.slice(zstart, zend).some((zx) => zx.trim() === '');
+  if (zhasBlank && zpars.length) return ztags.join('\n') + '\n' + '<p>' + zinline(zpars.join('\n'), {}) + '</p>\n' + ztags.join('\n') + '\n';
+  return zout.join('\n') + '\n';
 }
 
-function splitRow(line) {
-  let t = line.trim();
-  if (t.startsWith('|')) t = t.slice(1);
-  if (t.endsWith('|') && !t.endsWith('\\|')) t = t.slice(0, -1);
-  const cells = [];
-  let cur = '';
-  for (let k = 0; k < t.length; k++) {
-    const ch = t[k];
-    if (ch === '\\' && k + 1 < t.length) { cur += ch + t[k + 1]; k++; continue; }
-    if (ch === '|') { cells.push(cur); cur = ''; continue; }
-    cur += ch;
+function zsplitRow(zline) {
+  let zt = zline.trim();
+  if (zt.startsWith('|')) zt = zt.slice(1);
+  if (zt.endsWith('|') && !zt.endsWith('\\|')) zt = zt.slice(0, -1);
+  const zcells = [];
+  let zcur = '';
+  for (let zk = 0; zk < zt.length; zk++) {
+    const zch = zt[zk];
+    if (zch === '\\' && zk + 1 < zt.length) { zcur += zch + zt[zk + 1]; zk++; continue; }
+    if (zch === '|') { zcells.push(zcur); zcur = ''; continue; }
+    zcur += zch;
   }
-  cells.push(cur);
-  return cells.map((c) => c.trim());
+  zcells.push(zcur);
+  return zcells.map((zc) => zc.trim());
 }
 
-function isDelimRow(cells) {
-  if (!cells.length) return false;
-  return cells.every((c) => /^:?-+:?$/.test(c));
+function zisDelimRow(zcells) {
+  if (!zcells.length) return false;
+  return zcells.every((zc) => /^:?-+:?$/.test(zc));
 }
 
-function cellAlign(cell) {
-  const left = cell.startsWith(':');
-  const right = cell.endsWith(':');
-  if (left && right) return 'center';
-  if (right) return 'right';
-  if (left) return 'left';
+function zcellAlign(zcell) {
+  const zleft = zcell.startsWith(':');
+  const zright = zcell.endsWith(':');
+  if (zleft && zright) return 'center';
+  if (zright) return 'right';
+  if (zleft) return 'left';
   return null;
 }
 
-function renderTable(header, aligns, rows) {
-  let out = '<table>\n<thead>\n<tr>\n';
-  for (let k = 0; k < header.length; k++) {
-    const a = aligns[k];
-    out += '<th' + (a ? ' align="' + a + '"' : '') + '>' + header[k] + '</th>\n';
+function zrenderTable(zheader, zaligns, zrows) {
+  let zout = '<table>\n<thead>\n<tr>\n';
+  for (let zk = 0; zk < zheader.length; zk++) {
+    const za = zaligns[zk];
+    zout += '<th' + (za ? ' align="' + za + '"' : '') + '>' + zheader[zk] + '</th>\n';
   }
-  out += '</tr>\n</thead>\n';
-  if (rows.length) {
-    out += '<tbody>';
-    for (const row of rows) {
-      out += '<tr>\n';
-      for (let k = 0; k < header.length; k++) {
-        const a = aligns[k];
-        const v = row[k] === undefined ? '' : row[k];
-        out += '<td' + (a ? ' align="' + a + '"' : '') + '>' + v + '</td>\n';
+  zout += '</tr>\n</thead>\n';
+  if (zrows.length) {
+    zout += '<tbody>';
+    for (const zrow of zrows) {
+      zout += '<tr>\n';
+      for (let zk = 0; zk < zheader.length; zk++) {
+        const za = zaligns[zk];
+        const zv = zrow[zk] === undefined ? '' : zrow[zk];
+        zout += '<td' + (za ? ' align="' + za + '"' : '') + '>' + zv + '</td>\n';
       }
-      out += '</tr>\n';
+      zout += '</tr>\n';
     }
-    out += '</tbody>';
+    zout += '</tbody>';
   }
-  return out + '</table>\n';
+  return zout + '</table>\n';
 }
 
-const BULLET_RE = /^( {0,3})([-+*])([ \t]+|$)/;
-const ORDERED_RE = /^( {0,3})(\d{1,9})([.)])([ \t]+|$)/;
+const zBULLET_RE = /^( {0,3})([-+*])([ \t]+|$)/;
+const zORDERED_RE = /^( {0,3})(\d{1,9})([.)])([ \t]+|$)/;
 
-function isHr(line) {
-  return HR_RE.test(line);
+function zisHr(zline) {
+  return zHR_RE.test(zline);
 }
 
-function renderAtx(line) {
-  const m = ATX_RE.exec(line);
-  if (!m || m[1].length > 6) return null;
-  if (/^ {0,3}#{1,6}$/.test(line)) return { empty: true, level: m[1].length };
-  let text = line.slice(m[0].length);
-  text = text.replace(/[ \t]+#+[ \t]*$/, '');
-  return { text };
+function zrenderAtx(zline) {
+  const zm = zATX_RE.exec(zline);
+  if (!zm || zm[1].length > 6) return null;
+  if (/^ {0,3}#{1,6}$/.test(zline)) return { empty: true, level: zm[1].length };
+  let ztext = zline.slice(zm[0].length);
+  ztext = ztext.replace(/[ \t]+#+[ \t]*$/, '');
+  return { text: ztext };
 }
 
-function fence(line) {
-  const m = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
-  if (!m) return null;
-  const info = m[3];
-  if (m[2][0] === '`' && info.includes('`')) return null;
-  return { indent: m[1].length, char: m[2][0], len: m[2].length, info };
+function zfence(zline) {
+  const zm = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(zline);
+  if (!zm) return null;
+  const zinfo = zm[3];
+  if (zm[2][0] === '`' && zinfo.includes('`')) return null;
+  return { indent: zm[1].length, char: zm[2][0], len: zm[2].length, info: zinfo };
 }
 
-function fenceEnd(line, f) {
-  const m = /^( {0,3})(`{3,}|~{3,})[ \t]*$/.exec(line);
-  return m && m[2][0] === f.char && m[2].length >= f.len;
+function zfenceEnd(zline, zf) {
+  const zm = /^( {0,3})(`{3,}|~{3,})[ \t]*$/.exec(zline);
+  return zm && zm[2][0] === zf.char && zm[2].length >= zf.len;
 }
 
-function renderFence(info, text, closed) {
-  let out = text;
-  if (out === '' && closed) return '<pre><code' + fenceCls(info) + '></code></pre>\n';
-  if (!out.endsWith('\n')) out += '\n';
-  return '<pre><code' + fenceCls(info) + '>' + escapeHtml(out) + '</code></pre>\n';
+function zrenderFence(zinfo, ztext, zclosed) {
+  let zout = ztext;
+  if (zout === '' && zclosed) return '<pre><code' + zfenceCls(zinfo) + '></code></pre>\n';
+  if (!zout.endsWith('\n')) zout += '\n';
+  return '<pre><code' + zfenceCls(zinfo) + '>' + zescapeHtml(zout) + '</code></pre>\n';
 }
 
-function fenceCls(info) {
-  const lang = info.trim().split(/\s+/)[0];
-  return lang ? ' class="language-' + escapeHtml(lang) + '"' : '';
+function zfenceCls(zinfo) {
+  const zlang = zinfo.trim().split(/\s+/)[0];
+  return zlang ? ' class="language-' + zescapeHtml(zlang) + '"' : '';
 }
 
-function codeBlock(text) {
-  let out = text;
-  if (!out.endsWith('\n')) out += '\n';
-  return '<pre><code>' + escapeHtml(out) + '</code></pre>\n';
+function zcodeBlock(ztext) {
+  let zout = ztext;
+  if (!zout.endsWith('\n')) zout += '\n';
+  return '<pre><code>' + zescapeHtml(zout) + '</code></pre>\n';
 }
 
-function renderParagraph(buf, defs) {
-  return '<p>' + inline(buf.join('\n'), defs) + '</p>\n';
+function zrenderParagraph(zbuf, zdefs) {
+  return '<p>' + zinline(zbuf.join('\n'), zdefs) + '</p>\n';
 }
 
-function inline(s, defs) {
-  let out = '';
-  let i = 0;
-  const n = s.length;
-  while (i < n) {
-    if (s[i] === '\\' && i + 1 < n) {
-      const c = s[i + 1];
-      if (/[!-/:-@[-`{-~]/.test(c)) { out += escapeHtml(c); i += 2; continue; }
-      out += escapeHtml(s[i]); i++; continue;
+function zinline(zs, zdefs) {
+  let zout = '';
+  let zi = 0;
+  const zn = zs.length;
+  while (zi < zn) {
+    if (zs[zi] === '\\' && zi + 1 < zn) {
+      const zc = zs[zi + 1];
+      if (/[!-/:-@[-`{-~]/.test(zc)) { zout += zescapeHtml(zc); zi += 2; continue; }
+      zout += zescapeHtml(zs[zi]); zi++; continue;
     }
-    if (s[i] === '`') {
-      const cm = /^`+/.exec(s.slice(i));
-      const open = cm[0];
-      const rest = s.slice(i + open.length);
-      const cm2 = new RegExp('(?<!`)`{' + open.length + '}(?!`)').exec(rest);
-      if (cm2) {
-        let code = rest.slice(0, cm2.index).replace(/\n/g, ' ');
-        if (code.length >= 2 && code.startsWith(' ') && code.endsWith(' ') && /[^ ]/.test(code)) code = code.slice(1, -1);
-        out += '<code>' + escapeHtml(code) + '</code>';
-        i += open.length + cm2.index + open.length;
+    if (zs[zi] === '`') {
+      const zcm = /^`+/.exec(zs.slice(zi));
+      const zopen = zcm[0];
+      const zrest = zs.slice(zi + zopen.length);
+      const zcm2 = new RegExp('(?<!`)`{' + zopen.length + '}(?!`)').exec(zrest);
+      if (zcm2) {
+        let zcode = zrest.slice(0, zcm2.index).replace(/\n/g, ' ');
+        if (zcode.length >= 2 && zcode.startsWith(' ') && zcode.endsWith(' ') && /[^ ]/.test(zcode)) zcode = zcode.slice(1, -1);
+        zout += '<code>' + zescapeHtml(zcode) + '</code>';
+        zi += zopen.length + zcm2.index + zopen.length;
         continue;
       }
     }
-    if (s[i] === '&') {
-      const me = matchEntity(s, i);
-      if (me) { out += me.raw ? '&' + me.value + ';' : escapeHtml(me.value); i += me.len; continue; }
-      out += '&amp;'; i++; continue;
+    if (zs[zi] === '&') {
+      const zme = zmatchEntity(zs, zi);
+      if (zme) { zout += zme.raw ? '&' + zme.value + ';' : zescapeHtml(zme.value); zi += zme.len; continue; }
+      zout += '&amp;'; zi++; continue;
     }
-    if (s[i] === '\n') { out += '\n'; i++; continue; }
-    if (s[i] === '<') {
-      const m = /^<[A-Za-z!\/?][^<>]*>/.exec(s.slice(i));
-      if (m) { out += m[0]; i += m[0].length; continue; }
+    if (zs[zi] === '\n') { zout += '\n'; zi++; continue; }
+    if (zs[zi] === '<') {
+      const zm = /^<[A-Za-z!\/?][^<>]*>/.exec(zs.slice(zi));
+      if (zm) { zout += zm[0]; zi += zm[0].length; continue; }
     }
-    if (s[i] === '[') {
-      const m = /^\[([^\]]*)\]/.exec(s.slice(i));
-      if (m) {
-        const key = m[1].trim().replace(/\s+/g, ' ').toLowerCase();
-        const d = defs[key];
-        if (d) {
-          let t = '';
-          if (d.title !== null && d.title !== undefined) t = ' title="' + resume(d.title, defs) + '"';
-          out += '<a href="' + resume(d.dest, defs) + '"' + t + '>' + inline(m[1], defs) + '</a>';
-          i += m[0].length; continue;
+    if (zs[zi] === '[') {
+      const zm = /^\[([^\]]*)\]/.exec(zs.slice(zi));
+      if (zm) {
+        const zkey = zm[1].trim().replace(/\s+/g, ' ').toLowerCase();
+        const zd = zdefs[zkey];
+        if (zd) {
+          let zt = '';
+          if (zd.title !== null && zd.title !== undefined) zt = ' title="' + zresume(zd.title, zdefs) + '"';
+          zout += '<a href="' + zresume(zd.dest, zdefs) + '"' + zt + '>' + zinline(zm[1], zdefs) + '</a>';
+          zi += zm[0].length; continue;
         }
       }
     }
-    out += escapeHtml(s[i]); i++;
+    zout += zescapeHtml(zs[zi]); zi++;
   }
-  return out;
+  return zout;
 }
 
-function resume(s, defs) {
-  return inline(s, defs);
+function zresume(zs, zdefs) {
+  return zinline(zs, zdefs);
 }
 
-function listItem(line) {
-  const m = /^( {0,3})([-+*]|\d{1,9}[.)])([ \t]+|$)/.exec(line);
-  if (!m) return null;
-  const marker = m[2];
-  let content = line.slice(m[1].length + marker.length);
-  if (/^[ \t]*$/.test(content)) content = '';
+function zlistItem(zline) {
+  const zm = /^( {0,3})([-+*]|\d{1,9}[.)])([ \t]+|$)/.exec(zline);
+  if (!zm) return null;
+  const zmarker = zm[2];
+  let zcontent = zline.slice(zm[1].length + zmarker.length);
+  if (/^[ \t]*$/.test(zcontent)) zcontent = '';
   else {
-    const lead = /^[ \t]+/.exec(content)[0];
-    if (lead.length >= 5) content = content.slice(1);
-    else content = content.slice(lead.length);
+    const zlead = /^[ \t]+/.exec(zcontent)[0];
+    if (zlead.length >= 5) zcontent = zcontent.slice(1);
+    else zcontent = zcontent.slice(zlead.length);
   }
-  let type, bullet, ordered = null, start = 1;
-  if (/^[-+*]$/.test(marker)) { type = 'ul'; bullet = marker; }
+  let ztype, zbullet, zordered = null, zstart = 1;
+  if (/^[-+*]$/.test(zmarker)) { ztype = 'ul'; zbullet = zmarker; }
   else {
-    type = 'ol';
-    ordered = marker[marker.length - 1];
-    start = parseInt(marker, 10);
+    ztype = 'ol';
+    zordered = zmarker[zmarker.length - 1];
+    zstart = parseInt(zmarker, 10);
   }
-  const padding = m[3];
-  let full = m[1].length + marker.length + padding.length;
-  if (padding.length >= 5) full = m[1].length + marker.length + 1;
-  if (line[m[1].length + marker.length] === '\t' || m[1].includes('\t')) {
-    let col = 0, k = 0;
-    while (k < line.length) {
-      const ch = line[k];
-      if (ch === ' ') col++;
-      else if (ch === '\t') col += 4 - (col % 4);
-      else if (k >= m[1].length + marker.length) continue;
-      k++;
-      if (k === m[1].length + marker.length + padding.length) break;
+  const zpadding = zm[3];
+  let zfull = zm[1].length + zmarker.length + zpadding.length;
+  if (zpadding.length >= 5) zfull = zm[1].length + zmarker.length + 1;
+  if (zline[zm[1].length + zmarker.length] === '\t' || zm[1].includes('\t')) {
+    let zcol = 0, zk = 0;
+    while (zk < zline.length) {
+      const zch = zline[zk];
+      if (zch === ' ') zcol++;
+      else if (zch === '\t') zcol += 4 - (zcol % 4);
+      else if (zk >= zm[1].length + zmarker.length) continue;
+      zk++;
+      if (zk === zm[1].length + zmarker.length + zpadding.length) break;
     }
-    full = col;
+    zfull = zcol;
   }
-  return { type, bullet, ordered, start, indent: m[1].length, full, content };
+  return { type: ztype, bullet: zbullet, ordered: zordered, start: zstart, indent: zm[1].length, full: zfull, content: zcontent };
 }
 
-function indentOf(line) {
-  let c = 0;
-  for (const ch of line) {
-    if (ch === ' ') c++;
-    else if (ch === '\t') c += 4 - (c % 4);
+function zindentOf(zline) {
+  let zc = 0;
+  for (const zch of zline) {
+    if (zch === ' ') zc++;
+    else if (zch === '\t') zc += 4 - (zc % 4);
     else break;
   }
-  return c;
+  return zc;
 }
 
-function expandAllTabs(line) {
-  return expandTabs(line, 0);
+function zexpandAllTabs(zline) {
+  return zexpandTabs(zline, 0);
 }
 
-function leadWidth(s) {
-  let w = 0, k = 0;
-  while (k < s.length) {
-    const c = s[k];
-    if (c === ' ') { w++; k++; }
-    else if (c === '\t') { w += 4 - (w % 4); k++; }
+function zleadWidth(zs) {
+  let zw = 0, zk = 0;
+  while (zk < zs.length) {
+    const zc = zs[zk];
+    if (zc === ' ') { zw++; zk++; }
+    else if (zc === '\t') { zw += 4 - (zw % 4); zk++; }
     else break;
   }
-  return { width: w, count: k };
+  return { width: zw, count: zk };
 }
 
-function expandTabs(line, base) {
-  let col = base || 0, k = 0, out = '';
-  while (k < line.length) {
-    const ch = line[k];
-    if (ch === ' ') { col++; out += ' '; k++; }
-    else if (ch === '\t') { const a = 4 - (col % 4); out += ' '.repeat(a); col += a; k++; }
+function zexpandTabs(zline, zbase) {
+  let zcol = zbase || 0, zk = 0, zout = '';
+  while (zk < zline.length) {
+    const zch = zline[zk];
+    if (zch === ' ') { zcol++; zout += ' '; zk++; }
+    else if (zch === '\t') { const za = 4 - (zcol % 4); zout += ' '.repeat(za); zcol += za; zk++; }
     else break;
   }
-  return out + line.slice(k);
+  return zout + zline.slice(zk);
 }
-function isBlockCloser(lines, j) {
-  const l = lines[j];
-  return l.trim() === '' || /^ {0,3}>/.test(l) || fence(l) || isHr(l) || renderAtx(l) || htmlBlockStart(l);
+function zisBlockCloser(zlines, zj) {
+  const zl = zlines[zj];
+  return zl.trim() === '' || /^ {0,3}>/.test(zl) || zfence(zl) || zisHr(zl) || zrenderAtx(zl) || zhtmlBlockStart(zl);
 }
 
-function tryDefSeq(lines, i, allowIndent) {
-  const n = lines.length;
-  if (i >= n) return null;
-  const m = new RegExp('^' + (allowIndent ? '(?: {0,3})?' : ' {0,3}') + '\\[([^\\]]+)\\]:[ \\t]*').exec(lines[i]);
-  if (!m) return null;
-  const label = m[1];
-  let rest = lines[i].slice(m[0].length);
-  let consumed = 1;
-  let dest = null;
-  let title = null;
-  let dc = null;
-  for (let s = 0; s <= 1; s++) {
-    const r = parseDefRest(rest, 1 - s);
-    if (r) { dc = r; break; }
-    const j = i + 1 + s;
-    if (j >= n || isBlockCloser(lines, j)) break;
-    rest += '\n' + lines[j];
-    consumed = 2 + s;
+function ztryDefSeq(zlines, zi, zallowIndent) {
+  const zn = zlines.length;
+  if (zi >= zn) return null;
+  const zm = new RegExp('^' + (zallowIndent ? '(?: {0,3})?' : ' {0,3}') + '\\[([^\\]]+)\\]:[ \\t]*').exec(zlines[zi]);
+  if (!zm) return null;
+  const zlabel = zm[1];
+  let zrest = zlines[zi].slice(zm[0].length);
+  let zconsumed = 1;
+  let zdest = null;
+  let ztitle = null;
+  let zdc = null;
+  for (let zs = 0; zs <= 1; zs++) {
+    const zr = zparseDefRest(zrest, 1 - zs);
+    if (zr) { zdc = zr; break; }
+    const zj = zi + 1 + zs;
+    if (zj >= zn || zisBlockCloser(zlines, zj)) break;
+    zrest += '\n' + zlines[zj];
+    zconsumed = 2 + zs;
   }
-  if (!dc) return null;
-  dest = dc.dest;
-  let tp = i + consumed - 1;
-  for (let s2 = 0; s2 <= 1; s2++) {
-    if (consumed > 2 + s2) break;
-    const r = parseDefRest(rest, 2 - s2);
-    if (r && r.title !== null) {
-      title = r.title;
-      consumed = 2 + s2;
-      tp = i + consumed - 1;
+  if (!zdc) return null;
+  zdest = zdc.dest;
+  let ztp = zi + zconsumed - 1;
+  for (let zs2 = 0; zs2 <= 1; zs2++) {
+    if (zconsumed > 2 + zs2) break;
+    const zr = zparseDefRest(zrest, 2 - zs2);
+    if (zr && zr.title !== null) {
+      ztitle = zr.title;
+      zconsumed = 2 + zs2;
+      ztp = zi + zconsumed - 1;
       break;
     }
-    const j = i + 2 + s2;
-    if (j >= n || isBlockCloser(lines, j)) break;
-    rest += '\n' + lines[j];
+    const zj = zi + 2 + zs2;
+    if (zj >= zn || zisBlockCloser(zlines, zj)) break;
+    zrest += '\n' + zlines[zj];
   }
-  if (dc.title !== null) { title = dc.title; tp = i + consumed - 1; }
-  else if (dc.title === undefined) { tp = i + consumed - 1; }
-  const stripped = lines[tp] === undefined ? '' : lines[tp].replace(/^ {0,3}/, '');
-  const after = stripped.slice(stripped.length + ((stripped.match(/\[([^\]]+)\]:[ \t]*/) || [''])[0]).length);
-  if (dc.title === null && title === null && after.trim() !== '' && !after.trim().startsWith('(')) return null;
-  return { label, dest, title, consumed };
+  if (zdc.title !== null) { ztitle = zdc.title; ztp = zi + zconsumed - 1; }
+  else if (zdc.title === undefined) { ztp = zi + zconsumed - 1; }
+  const zstripped = zlines[ztp] === undefined ? '' : zlines[ztp].replace(/^ {0,3}/, '');
+  const zafter = zstripped.slice(zstripped.length + ((zstripped.match(/\[([^\]]+)\]:[ \t]*/) || [''])[0]).length);
+  if (zdc.title === null && ztitle === null && zafter.trim() !== '' && !zafter.trim().startsWith('(')) return null;
+  return { label: zlabel, dest: zdest, title: ztitle, consumed: zconsumed };
 }
 
-function parseDefDest(s, allowIndent) {
-  let p = 0;
-  const len = s.length;
-  while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
-  if (p >= len) return null;
-  if (s[p] === '\n' && !allowIndent) return null;
-  let dest = '';
-  if (s[p] === '<') {
-    p++;
-    while (p < len && s[p] !== '>' && s[p] !== '<' && s[p] !== '\n') { dest += s[p]; p++; }
-    if (s[p] !== '>') return null;
-    p++;
+function zparseDefDest(zs, zallowIndent) {
+  let zp = 0;
+  const zlen = zs.length;
+  while (zp < zlen && (zs[zp] === ' ' || zs[zp] === '\t')) zp++;
+  if (zp >= zlen) return null;
+  if (zs[zp] === '\n' && !zallowIndent) return null;
+  let zdest = '';
+  if (zs[zp] === '<') {
+    zp++;
+    while (zp < zlen && zs[zp] !== '>' && zs[zp] !== '<' && zs[zp] !== '\n') { zdest += zs[zp]; zp++; }
+    if (zs[zp] !== '>') return null;
+    zp++;
   } else {
-    let depth = 0;
-    while (p < len) {
-      const c = s[p];
-      if (c === '\\' && p + 1 < len) { dest += c + s[p + 1]; p += 2; continue; }
-      if (c === '(') depth++;
-      else if (c === ')') { if (depth === 0) break; depth--; }
-      else if (c === ' ' || c === '\t' || c === '\n') break;
-      dest += c; p++;
+    let zdepth = 0;
+    while (zp < zlen) {
+      const zc = zs[zp];
+      if (zc === '\\' && zp + 1 < zlen) { zdest += zc + zs[zp + 1]; zp += 2; continue; }
+      if (zc === '(') zdepth++;
+      else if (zc === ')') { if (zdepth === 0) break; zdepth--; }
+      else if (zc === ' ' || zc === '\t' || zc === '\n') break;
+      zdest += zc; zp++;
     }
-    if (dest === '') return null;
+    if (zdest === '') return null;
   }
-  return { p, dest };
+  return { p: zp, dest: zdest };
 }
 
-function parseDefRest(s, allowIndent) {
-  const dd = parseDefDest(s, allowIndent);
-  if (!dd) return null;
-  let p = dd.p;
-  const dest = dd.dest;
-  const len = s.length;
-  while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
-  if (p < len && s[p] === '\n') {
-    if (allowIndent < 1) return { dest, title: null };
-    p++;
-    while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
+function zparseDefRest(zs, zallowIndent) {
+  const zdd = zparseDefDest(zs, zallowIndent);
+  if (!zdd) return null;
+  let zp = zdd.p;
+  const zdest = zdd.dest;
+  const zlen = zs.length;
+  while (zp < zlen && (zs[zp] === ' ' || zs[zp] === '\t')) zp++;
+  if (zp < zlen && zs[zp] === '\n') {
+    if (zallowIndent < 1) return { dest: zdest, title: null };
+    zp++;
+    while (zp < zlen && (zs[zp] === ' ' || zs[zp] === '\t')) zp++;
   }
-  if (p >= len) return { dest, title: null };
-  const q = s[p];
-  if (q !== '"' && q !== "'" && q !== '(') return { dest, title: null };
-  const close = q === '(' ? ')' : q;
-  p++;
-  let t = '';
-  let ok = false;
-  while (p < len) {
-    const c = s[p];
-    if (c === '\\' && p + 1 < len) { t += c + s[p + 1]; p += 2; continue; }
-    if (c === close) { ok = true; p++; break; }
-    t += c; p++;
+  if (zp >= zlen) return { dest: zdest, title: null };
+  const zq = zs[zp];
+  if (zq !== '"' && zq !== "'" && zq !== '(') return { dest: zdest, title: null };
+  const zclose = zq === '(' ? ')' : zq;
+  zp++;
+  let zt = '';
+  let zok = false;
+  while (zp < zlen) {
+    const zc = zs[zp];
+    if (zc === '\\' && zp + 1 < zlen) { zt += zc + zs[zp + 1]; zp += 2; continue; }
+    if (zc === zclose) { zok = true; zp++; break; }
+    zt += zc; zp++;
   }
-  if (!ok) return null;
-  const title = t;
-  while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
-  if (p < len && s[p] !== '\n') return null;
-  return { dest, title };
+  if (!zok) return null;
+  const ztitle = zt;
+  while (zp < zlen && (zs[zp] === ' ' || zs[zp] === '\t')) zp++;
+  if (zp < zlen && zs[zp] !== '\n') return null;
+  return { dest: zdest, title: ztitle };
 }
 
-function collectDefs(lines, defs) {
-  let i = 0;
-  const n = lines.length;
-  while (i < n) {
-    const d = tryDefSeq(lines, i, false);
-    if (d) {
-      const key = d.label.trim().replace(/\s+/g, ' ').toLowerCase();
-      if (!(key in defs)) defs[key] = { dest: d.dest, title: d.title };
-      i += d.consumed;
+function zcollectDefs(zlines, zdefs) {
+  let zi = 0;
+  const zn = zlines.length;
+  while (zi < zn) {
+    const zd = ztryDefSeq(zlines, zi, false);
+    if (zd) {
+      const zkey = zd.label.trim().replace(/\s+/g, ' ').toLowerCase();
+      if (!(zkey in zdefs)) zdefs[zkey] = { dest: zd.dest, title: zd.title };
+      zi += zd.consumed;
     } else break;
   }
 }
 
-function gatherList(lines, i, n, markers) {
-  const items = [];
-  while (i < n) {
-    const m = listItem(lines[i]);
-    if (!m || m.type !== markers.type) break;
-    if (items.length && (m.bullet !== markers.bullet || m.ordered !== markers.ordered)) break;
-    if (m.indent > 3) break;
-    let content = [m.content];
-    i++;
-    let blank = false;
-    while (i < n) {
-      const line = lines[i];
-      if (line.trim() === '') {
-        let j = i;
-        while (j < n && lines[j].trim() === '') j++;
-        if (j >= n) { i = j; break; }
-        if (indentOf(lines[j]) >= m.full) {
-          content.push('#BLANK#');
-          i = j;
-          blank = true;
+function zgatherList(zlines, zi, zn, zmarkers) {
+  const zitems = [];
+  while (zi < zn) {
+    const zm = zlistItem(zlines[zi]);
+    if (!zm || zm.type !== zmarkers.type) break;
+    if (zitems.length && (zm.bullet !== zmarkers.bullet || zm.ordered !== zmarkers.ordered)) break;
+    if (zm.indent > 3) break;
+    let zcontent = [zm.content];
+    zi++;
+    let zblank = false;
+    while (zi < zn) {
+      const zline = zlines[zi];
+      if (zline.trim() === '') {
+        let zj = zi;
+        while (zj < zn && zlines[zj].trim() === '') zj++;
+        if (zj >= zn) { zi = zj; break; }
+        if (zindentOf(zlines[zj]) >= zm.full) {
+          zcontent.push('#BLANK#');
+          zi = zj;
+          zblank = true;
           continue;
         }
         break;
       }
-      const nm = listItem(line);
-      if (nm && nm.indent <= 3) break;
-      if (/^ {0,3}(=+|-+)[ \t]*$/.test(line) && /^ {0,3}-{1,2}/.test(line)) break;
-      if (indentOf(line) >= m.full) {
-        let l = line;
-        const lead = leadWidth(l);
-        l = l.slice(lead.count);
-        content.push(l);
-        i++;
-      } else if (!blank && !isHr(line) && line.trim() !== '') {
-        content.push(line.trim());
-        i++;
+      const znm = zlistItem(zline);
+      if (znm && znm.indent <= 3) break;
+      if (/^ {0,3}(=+|-+)[ \t]*$/.test(zline) && /^ {0,3}-{1,2}/.test(zline)) break;
+      if (zindentOf(zline) >= zm.full) {
+        let zl = zline;
+        const zlead = zleadWidth(zl);
+        zl = zl.slice(zlead.count);
+        zcontent.push(zl);
+        zi++;
+      } else if (!zblank && !zisHr(zline) && zline.trim() !== '') {
+        zcontent.push(zline.trim());
+        zi++;
       } else break;
     }
-    items.push({ blank, inner: content.join('\n') });
+    zitems.push({ blank: zblank, inner: zcontent.join('\n') });
   }
-  return { items, i };
+  return { items: zitems, i: zi };
 }
 
-function renderList(markers, items, defs) {
-  const loose = items.some((x) => x.blank) || items.some((x) => x.inner.includes('#BLANK#'));
-  let out = '<' + markers.type + (markers.type === 'ol' && markers.start !== 1 ? ' start="' + markers.start + '"' : '') + '>\n';
-  for (let k = 0; k < items.length; k++) {
-    const inner = items[k].inner.replace(/\n?#BLANK#\n?/g, '\n\n');
-    let body = blocks(inner, defs);
-    if (!loose) body = body.replace(/^<p>([\s\S]*?)<\/p>\n$/, '$1');
-    out += '<li>' + body + '</li>\n';
+function zrenderList(zmarkers, zitems, zdefs) {
+  const zloose = zitems.some((zx) => zx.blank) || zitems.some((zx) => zx.inner.includes('#BLANK#'));
+  let zout = '<' + zmarkers.type + (zmarkers.type === 'ol' && zmarkers.start !== 1 ? ' start="' + zmarkers.start + '"' : '') + '>\n';
+  for (let zk = 0; zk < zitems.length; zk++) {
+    const zinner = zitems[zk].inner.replace(/\n?#BLANK#\n?/g, '\n\n');
+    let zbody = blocks(zinner, zdefs);
+    if (!zloose) zbody = zbody.replace(/^<p>([\s\S]*?)<\/p>\n$/, '$1');
+    zout += '<li>' + zbody + '</li>\n';
   }
-  return out + '</' + markers.type + '>\n';
+  return zout + '</' + zmarkers.type + '>\n';
 }
 
-export function blocks(src, defs = {}) {
-  let lines = src.replace(/\n$/, '').split('\n');
-  if (src.indexOf('\t') !== -1) lines = lines.map(expandAllTabs);
-  const out = [];
-  let i = 0;
-  const n = lines.length;
-  collectDefs(lines, defs);
-  while (i < n) {
-    const d0 = tryDefSeq(lines, i, false);
-    if (d0) { i += d0.consumed; continue; }
-    if (lines[i].trim() === '') { i++; continue; }
-    const line = lines[i];
-    const li = isHr(line) ? null : listItem(line);
-    if (li && li.indent <= 3) {
-      const g = gatherList(lines, i, n, li);
-      i = g.i;
-      out.push(renderList(li, g.items, defs));
+export function blocks(zsrc, zdefs = {}) {
+  let zlines = zsrc.replace(/\n$/, '').split('\n');
+  if (zsrc.indexOf('\t') !== -1) zlines = zlines.map(zexpandAllTabs);
+  const zout = [];
+  let zi = 0;
+  const zn = zlines.length;
+  zcollectDefs(zlines, zdefs);
+  while (zi < zn) {
+    const zd0 = ztryDefSeq(zlines, zi, false);
+    if (zd0) { zi += zd0.consumed; continue; }
+    if (zlines[zi].trim() === '') { zi++; continue; }
+    const zline = zlines[zi];
+    const zli = zisHr(zline) ? null : zlistItem(zline);
+    if (zli && zli.indent <= 3) {
+      const zg = zgatherList(zlines, zi, zn, zli);
+      zi = zg.i;
+      zout.push(zrenderList(zli, zg.items, zdefs));
       continue;
     }
-    if (/^ {0,3}>/.test(line)) {
-      const inner = [];
-      while (i < n) {
-        const l = lines[i];
-        if (l.trim() === '') {
-          let j = i;
-          while (j < n && lines[j].trim() === '') j++;
-          if (j < n && /^ {0,3}>/.test(lines[j])) {
-            for (let k = i; k < j; k++) inner.push('');
-            i = j;
+    if (/^ {0,3}>/.test(zline)) {
+      const zinner = [];
+      while (zi < zn) {
+        const zl = zlines[zi];
+        if (zl.trim() === '') {
+          let zj = zi;
+          while (zj < zn && zlines[zj].trim() === '') zj++;
+          if (zj < zn && /^ {0,3}>/.test(zlines[zj])) {
+            for (let zk = zi; zk < zj; zk++) zinner.push('');
+            zi = zj;
           } else break;
-        } else { inner.push(bqStrip(l)); i++; }
+        } else { zinner.push(zbqStrip(zl)); zi++; }
       }
-      out.push('<blockquote>\n' + blocks(inner.join('\n'), defs) + '</blockquote>\n');
+      zout.push('<blockquote>\n' + blocks(zinner.join('\n'), zdefs) + '</blockquote>\n');
       continue;
     }
 
-    if (/^ {0,3}\S/.test(line) && line.includes('|') && i + 1 < n) {
-      const hc = splitRow(line);
-      const dc = splitRow(lines[i + 1]);
-      if (hc.length && dc.length === hc.length && isDelimRow(dc)) {
-        const aligns = dc.map(cellAlign);
-        i += 2;
-        const rows = [];
-        while (i < n && lines[i].trim() !== '' && !isHr(lines[i]) && !renderAtx(lines[i]) && !fence(lines[i])) {
-          rows.push(splitRow(lines[i]).map((c) => escapeHtml(c)));
-          i++;
+    if (/^ {0,3}\S/.test(zline) && zline.includes('|') && zi + 1 < zn) {
+      const zhc = zsplitRow(zline);
+      const zdc = zsplitRow(zlines[zi + 1]);
+      if (zhc.length && zdc.length === zhc.length && zisDelimRow(zdc)) {
+        const zaligns = zdc.map(zcellAlign);
+        zi += 2;
+        const zrows = [];
+        while (zi < zn && zlines[zi].trim() !== '' && !zisHr(zlines[zi]) && !zrenderAtx(zlines[zi]) && !zfence(zlines[zi])) {
+          zrows.push(zsplitRow(zlines[zi]).map((zc) => zescapeHtml(zc)));
+          zi++;
         }
-        out.push(renderTable(hc.map((c) => escapeHtml(c)), aligns, rows));
+        zout.push(zrenderTable(zhc.map((zc) => zescapeHtml(zc)), zaligns, zrows));
         continue;
       }
     }
-    const f = fence(line);
-    if (f) {
-      i++;
-      const buf = [];
-      let closed = false;
-      while (i < n && !fenceEnd(lines[i], f)) {
-        let l = lines[i];
-        for (let k = 0; k < f.indent && l[k] === ' '; k++) l = l.slice(1);
-        buf.push(l);
-        i++;
+    const zf = zfence(zline);
+    if (zf) {
+      zi++;
+      const zbuf = [];
+      let zclosed = false;
+      while (zi < zn && !zfenceEnd(zlines[zi], zf)) {
+        let zl = zlines[zi];
+        for (let zk = 0; zk < zf.indent && zl[zk] === ' '; zk++) zl = zl.slice(1);
+        zbuf.push(zl);
+        zi++;
       }
-      if (i < n) { closed = true; i++; }
-      out.push(renderFence(f.info, buf.join('\n'), closed));
-    } else if (indentOf(line) >= 4) {
-      const buf = [];
-      while (i < n && (indentOf(lines[i]) >= 4 || lines[i] === '')) {
-        if (lines[i] === '') {
-          const start = i;
-          let j = i;
-          while (j < n && lines[j] === '') j++;
-          if (j < n && indentOf(lines[j]) >= 4 && lines.slice(start, j).every((x) => x === '')) {
-            for (let k = start; k < j; k++) buf.push('');
-            i = j;
+      if (zi < zn) { zclosed = true; zi++; }
+      zout.push(zrenderFence(zf.info, zbuf.join('\n'), zclosed));
+    } else if (zindentOf(zline) >= 4) {
+      const zbuf = [];
+      while (zi < zn && (zindentOf(zlines[zi]) >= 4 || zlines[zi] === '')) {
+        if (zlines[zi] === '') {
+          const zstart = zi;
+          let zj = zi;
+          while (zj < zn && zlines[zj] === '') zj++;
+          if (zj < zn && zindentOf(zlines[zj]) >= 4 && zlines.slice(zstart, zj).every((zx) => zx === '')) {
+            for (let zk = zstart; zk < zj; zk++) zbuf.push('');
+            zi = zj;
           } else break;
-        } else { buf.push(lines[i].slice(4)); i++; }
+        } else { zbuf.push(zlines[zi].slice(4)); zi++; }
       }
-      out.push(codeBlock(buf.join('\n')));
-    } else if (htmlBlockStart(line)) {
-      const type = htmlBlockStart(line);
-      const kept = [];
-      let sawBlank = false;
-      while (i < n) {
-        if (lines[i].trim() === '') {
-          if (type <= 5) { i++; sawBlank = true; continue; }
-          let j = i;
-          while (j < n && lines[j].trim() === '') j++;
-          if (j < n && !/^ {0,3}<\//.test(lines[j])) { kept.push(''); i = j; continue; }
+      zout.push(zcodeBlock(zbuf.join('\n')));
+    } else if (zhtmlBlockStart(zline)) {
+      const ztype = zhtmlBlockStart(zline);
+      const zkept = [];
+      let zsawBlank = false;
+      while (zi < zn) {
+        if (zlines[zi].trim() === '') {
+          if (ztype <= 5) { zi++; zsawBlank = true; continue; }
+          let zj = zi;
+          while (zj < zn && zlines[zj].trim() === '') zj++;
+          if (zj < zn && !/^ {0,3}<\//.test(zlines[zj])) { zkept.push(''); zi = zj; continue; }
           break;
         }
-        kept.push(lines[i]); i++;
+        zkept.push(zlines[zi]); zi++;
       }
-      const r = consumeHtmlBlock(kept, 0, kept.length, type);
-      out.push(renderHtmlBlock(r.out, defs));
-    } else if (isHr(line)) {
-      i++;
-      out.push('<hr>\n');
+      const zr = zconsumeHtmlBlock(zkept, 0, zkept.length, ztype);
+      zout.push(zrenderHtmlBlock(zr.out, zdefs));
+    } else if (zisHr(zline)) {
+      zi++;
+      zout.push('<hr>\n');
     } else {
-      const m = renderAtx(line);
-      if (m) {
-        i++;
-        if (m.empty) out.push('<h' + /^ {0,3}(#+)/.exec(line)[1].length + '></h' + /^ {0,3}(#+)/.exec(line)[1].length + '>\n');
+      const zm = zrenderAtx(zline);
+      if (zm) {
+        zi++;
+        if (zm.empty) zout.push('<h' + /^ {0,3}(#+)/.exec(zline)[1].length + '></h' + /^ {0,3}(#+)/.exec(zline)[1].length + '>\n');
         else {
-          const lvl = /^ {0,3}(#{1,6})/.exec(line)[1].length;
-          out.push('<h' + lvl + '>' + inline(m.text, defs) + '</h' + lvl + '>\n');
+          const zlvl = /^ {0,3}(#{1,6})/.exec(zline)[1].length;
+          zout.push('<h' + zlvl + '>' + zinline(zm.text, zdefs) + '</h' + zlvl + '>\n');
         }
       } else {
-        const buf = [line];
-        i++;
-        let setext = null;
-        while (i < n) {
-          const cur = lines[i];
-          if (cur.trim() === '') break;
-          const se = /^ {0,3}(=+|-+)[ \t]*$/.exec(cur);
-          if (se) { setext = se[1][0]; i++; break; }
-          if (fence(cur) || isHr(cur) || renderAtx(cur) || htmlBlockStart(cur)) break;
-          buf.push(cur);
-          i++;
+        const zbuf = [zline];
+        zi++;
+        let zsetext = null;
+        while (zi < zn) {
+          const zcur = zlines[zi];
+          if (zcur.trim() === '') break;
+          const zse = /^ {0,3}(=+|-+)[ \t]*$/.exec(zcur);
+          if (zse) { zsetext = zse[1][0]; zi++; break; }
+          if (zfence(zcur) || zisHr(zcur) || zrenderAtx(zcur) || zhtmlBlockStart(zcur)) break;
+          zbuf.push(zcur);
+          zi++;
         }
-        if (setext) {
-          const lvl = setext === '=' ? 1 : 2;
-          out.push('<h' + lvl + '>' + inline(buf.join('\n'), defs) + '</h' + lvl + '>\n');
+        if (zsetext) {
+          const zlvl = zsetext === '=' ? 1 : 2;
+          zout.push('<h' + zlvl + '>' + zinline(zbuf.join('\n'), zdefs) + '</h' + zlvl + '>\n');
         } else {
-          out.push(renderParagraph(buf, defs));
+          zout.push(zrenderParagraph(zbuf, zdefs));
         }
       }
     }
   }
-  return out.join('');
+  return zout.join('');
 }
