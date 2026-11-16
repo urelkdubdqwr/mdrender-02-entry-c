@@ -18,8 +18,9 @@ export const GUARD = {
   'raw-html-inline': false,
 };
 
-// Cheap single-pass structural scan (plain string checks, no nested-quantifier
-// regexes). Returns a set of construct families the document appears to use.
+// Cheap single-pass structural scan (plain string checks / bounded regexes).
+// Returns the set of construct families the document appears to use. Conservative:
+// when a family cannot be ruled out, it is reported as present.
 export function scan(src) {
   const fams = new Set();
   fams.add('all');
