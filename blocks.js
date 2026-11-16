@@ -253,8 +253,24 @@ function listItem(line) {
 }
 
 function indentOf(line) {
-  const m = /^ */.exec(line);
-  return m[0].length;
+  let c = 0;
+  for (const ch of line) {
+    if (ch === ' ') c++;
+    else if (ch === '\t') c += 4 - (c % 4);
+    else break;
+  }
+  return c;
+}
+
+function expandTabs(line, base) {
+  let col = base || 0, k = 0, out = '';
+  while (k < line.length) {
+    const ch = line[k];
+    if (ch === ' ') { col++; out += ' '; k++; }
+    else if (ch === '\t') { const a = 4 - (col % 4); out += ' '.repeat(a); col += a; k++; }
+    else break;
+  }
+  return out + line.slice(k);
 }
 function parseLinkDef(at, i, n) {
   const m = /^ {0,3}\[([^\]]+)\]:[ \t]*/.exec(at[i]);
@@ -333,7 +349,8 @@ function collectDefs(lines, defs) {
 }
 
 export function blocks(src, defs = {}) {
-  const lines = src.replace(/\n$/, '').split('\n');
+  let lines = src.replace(/\n$/, '').split('\n');
+  if (src.indexOf('\t') !== -1) lines = lines.map((l) => expandTabs(l, 0));
   const out = [];
   let i = 0;
   const n = lines.length;
@@ -388,14 +405,14 @@ export function blocks(src, defs = {}) {
       }
       if (i < n) { closed = true; i++; }
       out.push(renderFence(f.info, buf.join('\n'), closed));
-    } else if (/^ {4}/.test(line)) {
+    } else if (indentOf(line) >= 4) {
       const buf = [];
-      while (i < n && (/^ {4}/.test(lines[i]) || lines[i] === '')) {
+      while (i < n && (indentOf(lines[i]) >= 4 || lines[i] === '')) {
         if (lines[i] === '') {
           const start = i;
           let j = i;
           while (j < n && lines[j] === '') j++;
-          if (j < n && /^ {4}/.test(lines[j])) {
+          if (j < n && indentOf(lines[j]) >= 4 && lines.slice(start, j).every((x) => x === '')) {
             for (let k = start; k < j; k++) buf.push('');
             i = j;
           } else break;
