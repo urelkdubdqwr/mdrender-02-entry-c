@@ -33,7 +33,7 @@ function linesRestHtml(line) {
   return line.slice(m[0].length);
 }
 
-function renderHtmlChunk(out) {
+function renderHtmlChunk(out, defs) {
   const text = out.join('\n');
   if (text.endsWith('\n')) { /* keep */ }
   const first = out[0];
@@ -43,7 +43,7 @@ function renderHtmlChunk(out) {
     if (hash >= 0) {
       const head = text.slice(0, hash + 1);
       const tail = text.slice(hash + 2);
-      return head + blocks(tail);
+      return head + blocks(tail, defs);
     }
   }
   return text + '\n';
@@ -176,8 +176,45 @@ function codeBlock(text) {
   return '<pre><code>' + escapeHtml(out) + '</code></pre>\n';
 }
 
-function renderParagraph(buf) {
-  return '<p>' + buf.join('\n') + '</p>\n';
+function renderParagraph(buf, defs) {
+  return '<p>' + inline(buf.join('\n'), defs) + '</p>\n';
+}
+
+function inline(s, defs) {
+  let out = '';
+  let i = 0;
+  const n = s.length;
+  while (i < n) {
+    if (s[i] === '\\' && i + 1 < n) {
+      const c = s[i + 1];
+      if (/[!-/:-@[-`{-~]/.test(c)) { out += escapeHtml(c); i += 2; continue; }
+      out += escapeHtml(s[i]); i++; continue;
+    }
+    if (s[i] === '\n') { out += '\n'; i++; continue; }
+    if (s[i] === '<') {
+      const m = /^<[A-Za-z!\/?][^<>]*>/.exec(s.slice(i));
+      if (m) { out += m[0]; i += m[0].length; continue; }
+    }
+    if (s[i] === '[') {
+      const m = /^\[([^\]]*)\]/.exec(s.slice(i));
+      if (m) {
+        const key = m[1].trim().replace(/\s+/g, ' ').toLowerCase();
+        const d = defs[key];
+        if (d) {
+          let t = '';
+          if (d.title !== null && d.title !== undefined) t = ' title="' + resume(d.title, defs) + '"';
+          out += '<a href="' + resume(d.dest, defs) + '"' + t + '>' + inline(m[1], defs) + '</a>';
+          i += m[0].length; continue;
+        }
+      }
+    }
+    out += escapeHtml(s[i]); i++;
+  }
+  return out;
+}
+
+function resume(s, defs) {
+  return inline(s, defs);
 }
 
 function listItem(line) {
@@ -206,12 +243,92 @@ function indentOf(line) {
   const m = /^ */.exec(line);
   return m[0].length;
 }
-export function blocks(src) {
+function parseLinkDef(at, i, n) {
+  const m = /^ {0,3}\[([^\]]+)\]:[ \t]*/.exec(at[i]);
+  if (!m) return null;
+  if (!/^[ \t]*<?/.exec(at[i].slice(m[0].length))) return null;
+  let rest = at[i].slice(m[0].length);
+  const d = parseDefRest(rest);
+  if (d) return { label: m[1], dest: d.dest, title: d.title, consumed: 1 };
+  if (i + 1 < n) {
+    const d2 = parseDefRest(rest + '\n' + at[i + 1].replace(/^ {0,3}/, ''));
+    if (d2) return { label: m[1], dest: d2.dest, title: d2.title, consumed: 2 };
+  }
+  return null;
+}
+
+function parseDefRest(s) {
+  let p = 0;
+  const len = s.length;
+  while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
+  let dest = '';
+  if (s[p] === '<') {
+    p++;
+    while (p < len && s[p] !== '>' && s[p] !== '\n' && s[p] !== '<') { dest += s[p]; p++; }
+    if (s[p] !== '>') return null;
+    p++;
+  } else {
+    let depth = 0;
+    while (p < len) {
+      const c = s[p];
+      if (c === '\\' && p + 1 < len) { dest += c + s[p + 1]; p += 2; continue; }
+      if (c === '(') depth++;
+      else if (c === ')') { if (depth === 0) break; depth--; }
+      else if (c === ' ' || c === '\t' || c === '\n') break;
+      dest += c; p++;
+    }
+    if (dest === '') return null;
+  }
+  let title = null;
+  while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
+  if (p < len && s[p] !== '\n') {
+    const q = s[p];
+    const close = q === '(' ? ')' : q;
+    if (q === '"' || q === "'" || q === '(') {
+      p++;
+      let t = '';
+      let ok = false;
+      while (p < len) {
+        const c = s[p];
+        if (c === '\\' && p + 1 < len) { t += c + s[p + 1]; p += 2; continue; }
+        if (c === close) { ok = true; p++; break; }
+        if (q === '(' && c === '(') return null;
+        t += c; p++;
+      }
+      if (!ok) return null;
+      title = t;
+      while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
+    } else return null;
+  }
+  while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
+  if (p < len && s[p] !== '\n') return null;
+  if (title !== null) return { dest, title };
+  return { dest, title: null };
+}
+
+function collectDefs(lines, defs) {
+  let i = 0;
+  const n = lines.length;
+  while (i < n) {
+    const d = parseLinkDef(lines, i, n);
+    if (d) {
+      const key = d.label.trim().replace(/\s+/g, ' ').toLowerCase();
+      if (!(key in defs)) defs[key] = { dest: d.dest, title: d.title };
+      i += d.consumed;
+    } else break;
+  }
+}
+
+export function blocks(src, defs = {}) {
   const lines = src.replace(/\n$/, '').split('\n');
   const out = [];
   let i = 0;
   const n = lines.length;
+  collectDefs(lines, defs);
   while (i < n) {
+    const d0 = parseLinkDef(lines, i, n);
+    if (d0) { i += d0.consumed; continue; }
+    if (lines[i].trim() === '') { i++; continue; }
     const line = lines[i];
     if (/^ {0,3}>/.test(line)) {
       const inner = [];
@@ -226,7 +343,7 @@ export function blocks(src) {
           } else break;
         } else { inner.push(bqStrip(l)); i++; }
       }
-      out.push('<blockquote>\n' + blocks(inner.join('\n')) + '</blockquote>\n');
+      out.push('<blockquote>\n' + blocks(inner.join('\n'), defs) + '</blockquote>\n');
       continue;
     }
 
@@ -278,7 +395,7 @@ export function blocks(src) {
       while (i < n && /^ {0,3}/.test(lines[i])) { kept.push(lines[i].replace(/^ {0,3}/, '')); i++; }
       const g = consumeHtmlBlock(kept, 0, kept.length, type);
       i -= (kept.length - g.i);
-      out.push(renderHtmlChunk(g.out));
+      out.push(renderHtmlChunk(g.out, defs));
     } else if (isHr(line)) {
       i++;
       out.push('<hr>\n');
@@ -289,7 +406,7 @@ export function blocks(src) {
         if (m.empty) out.push('<h' + /^ {0,3}(#+)/.exec(line)[1].length + '></h' + /^ {0,3}(#+)/.exec(line)[1].length + '>\n');
         else {
           const lvl = /^ {0,3}(#{1,6})/.exec(line)[1].length;
-          out.push('<h' + lvl + '>' + escapeHtml(m.text) + '</h' + lvl + '>\n');
+          out.push('<h' + lvl + '>' + inline(m.text, defs) + '</h' + lvl + '>\n');
         }
       } else {
         const buf = [line];
@@ -306,9 +423,9 @@ export function blocks(src) {
         }
         if (setext) {
           const lvl = setext === '=' ? 1 : 2;
-          out.push('<h' + lvl + '>' + buf.join('\n') + '</h' + lvl + '>\n');
+          out.push('<h' + lvl + '>' + inline(buf.join('\n'), defs) + '</h' + lvl + '>\n');
         } else {
-          out.push(renderParagraph(buf));
+          out.push(renderParagraph(buf, defs));
         }
       }
     }
