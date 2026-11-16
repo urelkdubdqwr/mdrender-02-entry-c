@@ -267,8 +267,22 @@ function listItem(line) {
     ordered = marker[marker.length - 1];
     start = parseInt(marker, 10);
   }
-  const full = m[1].length + marker.length + (line.slice(m[1].length + marker.length).length - line.slice(m[1].length + marker.length).replace(/^[ \t]*/, '').length);
-  return { type, bullet, ordered, start, indent: m[1].length, full: full <= line.length ? full : line.length, content };
+  const padding = m[3];
+  let full = m[1].length + marker.length + padding.length;
+  if (padding.length >= 5) full = m[1].length + marker.length + 1;
+  if (line[m[1].length + marker.length] === '\t' || m[1].includes('\t')) {
+    let col = 0, k = 0;
+    while (k < line.length) {
+      const ch = line[k];
+      if (ch === ' ') col++;
+      else if (ch === '\t') col += 4 - (col % 4);
+      else if (k >= m[1].length + marker.length) continue;
+      k++;
+      if (k === m[1].length + marker.length + padding.length) break;
+    }
+    full = col;
+  }
+  return { type, bullet, ordered, start, indent: m[1].length, full, content };
 }
 
 function indentOf(line) {
@@ -279,6 +293,21 @@ function indentOf(line) {
     else break;
   }
   return c;
+}
+
+function expandAllTabs(line) {
+  return expandTabs(line, 0);
+}
+
+function leadWidth(s) {
+  let w = 0, k = 0;
+  while (k < s.length) {
+    const c = s[k];
+    if (c === ' ') { w++; k++; }
+    else if (c === '\t') { w += 4 - (w % 4); k++; }
+    else break;
+  }
+  return { width: w, count: k };
 }
 
 function expandTabs(line, base) {
@@ -411,9 +440,64 @@ function collectDefs(lines, defs) {
   }
 }
 
+function gatherList(lines, i, n, markers) {
+  const items = [];
+  while (i < n) {
+    const m = listItem(lines[i]);
+    if (!m || m.type !== markers.type) break;
+    if (items.length && (m.bullet !== markers.bullet || m.ordered !== markers.ordered)) break;
+    if (m.indent > 3) break;
+    let content = [m.content];
+    i++;
+    let blank = false;
+    while (i < n) {
+      const line = lines[i];
+      if (line.trim() === '') {
+        let j = i;
+        while (j < n && lines[j].trim() === '') j++;
+        if (j >= n) { i = j; break; }
+        if (indentOf(lines[j]) >= m.full) {
+          content.push('#BLANK#');
+          i = j;
+          blank = true;
+          continue;
+        }
+        break;
+      }
+      const nm = listItem(line);
+      if (nm && nm.indent <= 3) break;
+      if (/^ {0,3}(=+|-+)[ \t]*$/.test(line) && /^ {0,3}-{1,2}/.test(line)) break;
+      if (indentOf(line) >= m.full) {
+        let l = line;
+        const lead = leadWidth(l);
+        l = l.slice(lead.count);
+        content.push(l);
+        i++;
+      } else if (!blank && !isHr(line) && line.trim() !== '') {
+        content.push(line.trim());
+        i++;
+      } else break;
+    }
+    items.push({ blank, inner: content.join('\n') });
+  }
+  return { items, i };
+}
+
+function renderList(markers, items, defs) {
+  const loose = items.some((x) => x.blank) || items.some((x) => x.inner.includes('#BLANK#'));
+  let out = '<' + markers.type + (markers.type === 'ol' && markers.start !== 1 ? ' start="' + markers.start + '"' : '') + '>\n';
+  for (let k = 0; k < items.length; k++) {
+    const inner = items[k].inner.replace(/\n?#BLANK#\n?/g, '\n\n');
+    let body = blocks(inner, defs);
+    if (!loose) body = body.replace(/^<p>([\s\S]*?)<\/p>\n$/, '$1');
+    out += '<li>' + body + '</li>\n';
+  }
+  return out + '</' + markers.type + '>\n';
+}
+
 export function blocks(src, defs = {}) {
   let lines = src.replace(/\n$/, '').split('\n');
-  if (src.indexOf('\t') !== -1) lines = lines.map((l) => expandTabs(l, 0));
+  if (src.indexOf('\t') !== -1) lines = lines.map(expandAllTabs);
   const out = [];
   let i = 0;
   const n = lines.length;
@@ -423,6 +507,13 @@ export function blocks(src, defs = {}) {
     if (d0) { i += d0.consumed; continue; }
     if (lines[i].trim() === '') { i++; continue; }
     const line = lines[i];
+    const li = isHr(line) ? null : listItem(line);
+    if (li && li.indent <= 3) {
+      const g = gatherList(lines, i, n, li);
+      i = g.i;
+      out.push(renderList(li, g.items, defs));
+      continue;
+    }
     if (/^ {0,3}>/.test(line)) {
       const inner = [];
       while (i < n) {
