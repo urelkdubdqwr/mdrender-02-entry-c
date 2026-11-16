@@ -9,6 +9,126 @@ function bqStrip(line) {
 
 const HR_RE = /^ {0,3}((\*[ \t]*){3,}|(-[ \t]*){3,}|(_[ \t]*){3,})$/;
 const ATX_RE = /^ {0,3}(#{1,6})([ \t]+|$)/;
+const HTML_BLOCK_TAGS = new Set(['address','article','aside','base','basefont','blockquote','body','caption','center','col','colgroup','dd','details','dialog','dir','div','dl','dt','fieldset','figcaption','figure','footer','form','frame','frameset','h1','h2','h3','h4','h5','h6','head','header','hr','html','iframe','legend','li','link','main','menu','menuitem','nav','noframes','ol','optgroup','option','p','param','search','section','summary','table','tbody','td','tfoot','th','thead','title','tr','track','ul']);
+
+function htmlBlockStart(line) {
+  if (/^ {0,3}<(script|pre|style|textarea)([ \t]|>|$)/i.test(line)) return 1;
+  if (/^ {0,3}<!--/.test(line)) return 2;
+  if (/^ {0,3}<\?/.test(line)) return 3;
+  if (/^ {0,3}<![A-Za-z]/.test(line)) return 4;
+  if (/^ {0,3}<!\[CDATA\[/.test(line)) return 5;
+  const m = /^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)([ \t\/>]|$)/.exec(line);
+  if (m && HTML_BLOCK_TAGS.has(m[1].toLowerCase())) return 6;
+  const m7 = /^( {0,3})<\/?([A-Za-z][A-Za-z0-9-]*)([ \t]+[^>]*)?>[ \t]*$/.exec(line);
+  if (m7) {
+    const rest = linesRestHtml(line);
+    if (rest === null || rest.trim() === '') return 7;
+  }
+  return 0;
+}
+
+function linesRestHtml(line) {
+  const m = /^( {0,3})<[^>]*>/.exec(line);
+  if (!m) return null;
+  return line.slice(m[0].length);
+}
+
+function renderHtmlChunk(out) {
+  const text = out.join('\n');
+  if (text.endsWith('\n')) { /* keep */ }
+  const first = out[0];
+  const t = /^ {0,3}<([A-Za-z][A-Za-z0-9-]*)([ \t\/>]|$)/.exec(first);
+  if (t && t[1].toLowerCase() === 'pre') {
+    const hash = text.indexOf('\n\n');
+    if (hash >= 0) {
+      const head = text.slice(0, hash + 1);
+      const tail = text.slice(hash + 2);
+      return head + blocks(tail);
+    }
+  }
+  return text + '\n';
+}
+
+function htmlBlockEnd(type, line) {
+  if (type >= 1 && type <= 5) {
+    if (type === 1) return /<\/(script|pre|style|textarea)>/i.test(line);
+    if (type === 2) return line.includes('-->');
+    if (type === 3) return line.includes('?>');
+    if (type === 4) return line.includes('>');
+    return line.includes(']]>');
+  }
+  return line.trim() === '';
+}
+
+function consumeHtmlBlock(lines, i, n, type) {
+  const out = [];
+  if (type >= 6) {
+    while (i < n && lines[i].trim() !== '') { out.push(lines[i]); i++; }
+    return { out, i };
+  }
+  while (i < n) {
+    out.push(lines[i]);
+    const hit = htmlBlockEnd(type, lines[i]);
+    i++;
+    if (hit) break;
+  }
+  return { out, i };
+}
+
+
+function splitRow(line) {
+  let t = line.trim();
+  if (t.startsWith('|')) t = t.slice(1);
+  if (t.endsWith('|') && !t.endsWith('\\|')) t = t.slice(0, -1);
+  const cells = [];
+  let cur = '';
+  for (let k = 0; k < t.length; k++) {
+    const ch = t[k];
+    if (ch === '\\' && k + 1 < t.length) { cur += ch + t[k + 1]; k++; continue; }
+    if (ch === '|') { cells.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  cells.push(cur);
+  return cells.map((c) => c.trim());
+}
+
+function isDelimRow(cells) {
+  if (!cells.length) return false;
+  return cells.every((c) => /^:?-+:?$/.test(c));
+}
+
+function cellAlign(cell) {
+  const left = cell.startsWith(':');
+  const right = cell.endsWith(':');
+  if (left && right) return 'center';
+  if (right) return 'right';
+  if (left) return 'left';
+  return null;
+}
+
+function renderTable(header, aligns, rows) {
+  let out = '<table>\n<thead>\n<tr>\n';
+  for (let k = 0; k < header.length; k++) {
+    const a = aligns[k];
+    out += '<th' + (a ? ' align="' + a + '"' : '') + '>' + header[k] + '</th>\n';
+  }
+  out += '</tr>\n</thead>\n';
+  if (rows.length) {
+    out += '<tbody>';
+    for (const row of rows) {
+      out += '<tr>\n';
+      for (let k = 0; k < header.length; k++) {
+        const a = aligns[k];
+        const v = row[k] === undefined ? '' : row[k];
+        out += '<td' + (a ? ' align="' + a + '"' : '') + '>' + v + '</td>\n';
+      }
+      out += '</tr>\n';
+    }
+    out += '</tbody>';
+  }
+  return out + '</table>\n';
+}
+
 const BULLET_RE = /^( {0,3})([-+*])([ \t]+|$)/;
 const ORDERED_RE = /^( {0,3})(\d{1,9})([.)])([ \t]+|$)/;
 
@@ -57,8 +177,7 @@ function codeBlock(text) {
 }
 
 function renderParagraph(buf) {
-  const parts = buf.map((l) => escapeHtml(l));
-  return '<p>' + parts.join('\n') + '</p>\n';
+  return '<p>' + buf.join('\n') + '</p>\n';
 }
 
 function listItem(line) {
@@ -87,69 +206,6 @@ function indentOf(line) {
   const m = /^ */.exec(line);
   return m[0].length;
 }
-
-function blankRun(lines, i, n) {
-  let j = i;
-  while (j < n && lines[j].trim() === '') j++;
-  return j;
-}
-
-function gatherList(lines, i, n, markers) {
-  const items = [];
-  while (i < n) {
-    const m = listItem(lines[i]);
-    if (!m || m.type !== markers.type) break;
-    if (items.length && (m.bullet !== markers.bullet || m.ordered !== markers.ordered)) break;
-    if (m.indent > 3) break;
-    let content = [m.content];
-    i++;
-    let blank = false;
-    while (i < n) {
-      const line = lines[i];
-      if (line.trim() === '') {
-        const j = blankRun(lines, i, n);
-        if (j >= n) { i = j; break; }
-        const nm = listItem(lines[j]);
-        const ind = indentOf(lines[j]);
-        if (ind >= m.full) {
-          content.push('#BLANK#');
-          i = j;
-          blank = true;
-          continue;
-        }
-        break;
-      }
-      const nm = listItem(line);
-      if (nm && nm.indent <= 3) break;
-      if (/^ {0,3}(=+|-+)[ \t]*$/.test(line) && /^ {0,3}-{1,2}/.test(line)) break;
-      const ind = indentOf(line);
-      if (ind >= m.full) {
-        let l = line;
-        for (let k = 0; k < m.full && l[k] === ' '; k++) l = l.slice(1);
-        content.push(l);
-        i++;
-      } else if (!blank && !isHr(line) && /^ {0,3}[^ ]/.test(line)) {
-        content.push(line.replace(/^ {0,3}/, ''));
-        i++;
-      } else break;
-    }
-    items.push({ blank, inner: content.join('\n') });
-  }
-  return { items, i };
-}
-
-function renderList(markers, items) {
-  const loose = items.some((x) => x.blank) || items.some((x) => x.inner.includes('#BLANK#'));
-  let out = '<' + markers.type + (markers.type === 'ol' && markers.start !== 1 ? ' start="' + markers.start + '"' : '') + '>\n';
-  for (let k = 0; k < items.length; k++) {
-    let inner = items[k].inner.replace(/\n?#BLANK#\n?/g, '\n\n');
-    let body = blocks(inner);
-    if (!loose) body = body.replace(/^<p>([\s\S]*?)<\/p>\n$/, '$1');
-    out += '<li>' + body + '</li>\n';
-  }
-  return out + '</' + markers.type + '>\n';
-}
-
 export function blocks(src) {
   const lines = src.replace(/\n$/, '').split('\n');
   const out = [];
@@ -157,13 +213,6 @@ export function blocks(src) {
   const n = lines.length;
   while (i < n) {
     const line = lines[i];
-    const li = isHr(line) ? null : listItem(line);
-    if (li && li.indent <= 3) {
-      const g = gatherList(lines, i, n, li);
-      i = g.i;
-      out.push(renderList(li, g.items));
-      continue;
-    }
     if (/^ {0,3}>/.test(line)) {
       const inner = [];
       while (i < n) {
@@ -179,6 +228,22 @@ export function blocks(src) {
       }
       out.push('<blockquote>\n' + blocks(inner.join('\n')) + '</blockquote>\n');
       continue;
+    }
+
+    if (/^ {0,3}\S/.test(line) && line.includes('|') && i + 1 < n) {
+      const hc = splitRow(line);
+      const dc = splitRow(lines[i + 1]);
+      if (hc.length && dc.length === hc.length && isDelimRow(dc)) {
+        const aligns = dc.map(cellAlign);
+        i += 2;
+        const rows = [];
+        while (i < n && lines[i].trim() !== '' && !isHr(lines[i]) && !renderAtx(lines[i]) && !fence(lines[i])) {
+          rows.push(splitRow(lines[i]).map((c) => escapeHtml(c)));
+          i++;
+        }
+        out.push(renderTable(hc.map((c) => escapeHtml(c)), aligns, rows));
+        continue;
+      }
     }
     const f = fence(line);
     if (f) {
@@ -207,6 +272,13 @@ export function blocks(src) {
         } else { buf.push(lines[i].slice(4)); i++; }
       }
       out.push(codeBlock(buf.join('\n')));
+    } else if (htmlBlockStart(line)) {
+      const type = htmlBlockStart(line);
+      const kept = [];
+      while (i < n && /^ {0,3}/.test(lines[i])) { kept.push(lines[i].replace(/^ {0,3}/, '')); i++; }
+      const g = consumeHtmlBlock(kept, 0, kept.length, type);
+      i -= (kept.length - g.i);
+      out.push(renderHtmlChunk(g.out));
     } else if (isHr(line)) {
       i++;
       out.push('<hr>\n');
@@ -228,13 +300,13 @@ export function blocks(src) {
           if (cur.trim() === '') break;
           const se = /^ {0,3}(=+|-+)[ \t]*$/.exec(cur);
           if (se) { setext = se[1][0]; i++; break; }
-          if (fence(cur) || isHr(cur) || renderAtx(cur)) break;
+          if (fence(cur) || isHr(cur) || renderAtx(cur) || htmlBlockStart(cur)) break;
           buf.push(cur);
           i++;
         }
         if (setext) {
           const lvl = setext === '=' ? 1 : 2;
-          out.push('<h' + lvl + '>' + buf.map((l) => escapeHtml(l)).join('\n') + '</h' + lvl + '>\n');
+          out.push('<h' + lvl + '>' + buf.join('\n') + '</h' + lvl + '>\n');
         } else {
           out.push(renderParagraph(buf));
         }
