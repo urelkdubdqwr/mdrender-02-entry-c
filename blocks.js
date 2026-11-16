@@ -1,5 +1,5 @@
 function escapeHtml(s) {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/'/g, '&#39;');
 }
 
 function bqStrip(line) {
@@ -42,6 +42,7 @@ function consumeHtmlBlock(lines, i, n, type) {
   const out = [];
   if (type >= 6) {
     while (i < n && lines[i].trim() !== '') { out.push(lines[i]); i++; }
+    if (i < n) { out.push(lines[i]); i++; }
     return { out, i };
   }
   while (i < n) {
@@ -53,8 +54,37 @@ function consumeHtmlBlock(lines, i, n, type) {
   return { out, i };
 }
 
+const RAW_TAGS = new Set(['pre', 'script', 'style', 'textarea']);
+
 function renderHtmlBlock(out, defs) {
   if (!out.length) return '';
+  const t = /^ {0,3}<([A-Za-z][A-Za-z0-9-]*)/.exec(out[0]);
+  const tag = t ? t[1].toLowerCase() : '';
+  if (RAW_TAGS.has(tag)) return out.join('\n') + (out[out.length - 1] ? '\n' : '');
+  return processHtml(out);
+}
+
+function emitInlineHtml(s) {
+  return s.replace(/<!--[\s\S]*?-->/g, (m) => m).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])).replace(/&amp;(#?[A-Za-z0-9]+;)/g, '&$1');
+}
+
+function processHtml(out) {
+  const c = out.map((x) => x.replace(/^ {0,3}/, ''));
+  let start = 0;
+  let end = c.length;
+  while (start < end && c[start].trim() === '') start++;
+  while (end > start && c[end - 1].trim() === '') end--;
+  if (start >= end) return '\n';
+  const tags = [];
+  const pars = [];
+  for (let k = start; k < end; k++) {
+    if (c[k].trim() === '') continue;
+    const h = k + 1 < end && c[k + 1].trim() === '';
+    if (h) tags.push(c[k]);
+    else pars.push(c[k]);
+  }
+  const hasBlank = out.slice(start, end).some((x) => x.trim() === '');
+  if (hasBlank && pars.length) return tags.join('\n') + '\n' + '<p>' + inline(pars.join('\n'), {}) + '</p>\n' + tags.join('\n') + '\n';
   return out.join('\n') + '\n';
 }
 
@@ -254,28 +284,63 @@ function expandTabs(line, base) {
   }
   return out + line.slice(k);
 }
-function parseLinkDef(at, i, n) {
-  const m = /^ {0,3}\[([^\]]+)\]:[ \t]*/.exec(at[i]);
-  if (!m) return null;
-  if (!/^[ \t]*<?/.exec(at[i].slice(m[0].length))) return null;
-  let rest = at[i].slice(m[0].length);
-  const d = parseDefRest(rest);
-  if (d) return { label: m[1], dest: d.dest, title: d.title, consumed: 1 };
-  if (i + 1 < n) {
-    const d2 = parseDefRest(rest + '\n' + at[i + 1].replace(/^ {0,3}/, ''));
-    if (d2) return { label: m[1], dest: d2.dest, title: d2.title, consumed: 2 };
-  }
-  return null;
+function isBlockCloser(lines, j) {
+  const l = lines[j];
+  return l.trim() === '' || /^ {0,3}>/.test(l) || fence(l) || isHr(l) || renderAtx(l) || htmlBlockStart(l);
 }
 
-function parseDefRest(s) {
+function tryDefSeq(lines, i, allowIndent) {
+  const n = lines.length;
+  if (i >= n) return null;
+  const m = new RegExp('^' + (allowIndent ? '(?: {0,3})?' : ' {0,3}') + '\\[([^\\]]+)\\]:[ \\t]*').exec(lines[i]);
+  if (!m) return null;
+  const label = m[1];
+  let rest = lines[i].slice(m[0].length);
+  let consumed = 1;
+  let dest = null;
+  let title = null;
+  let dc = null;
+  for (let s = 0; s <= 1; s++) {
+    const r = parseDefRest(rest, 1 - s);
+    if (r) { dc = r; break; }
+    const j = i + 1 + s;
+    if (j >= n || isBlockCloser(lines, j)) break;
+    rest += '\n' + lines[j];
+    consumed = 2 + s;
+  }
+  if (!dc) return null;
+  dest = dc.dest;
+  let tp = i + consumed - 1;
+  for (let s2 = 0; s2 <= 1; s2++) {
+    if (consumed > 2 + s2) break;
+    const r = parseDefRest(rest, 2 - s2);
+    if (r && r.title !== null) {
+      title = r.title;
+      consumed = 2 + s2;
+      tp = i + consumed - 1;
+      break;
+    }
+    const j = i + 2 + s2;
+    if (j >= n || isBlockCloser(lines, j)) break;
+    rest += '\n' + lines[j];
+  }
+  if (dc.title !== null) { title = dc.title; tp = i + consumed - 1; }
+  else if (dc.title === undefined) { tp = i + consumed - 1; }
+  const after = lines[tp].slice(lines[tp].replace(/^ {0,3}/, '').length + lines[tp].replace(/^ {0,3}/, '').match(/\[([^\]]+)\]:[ \t]*/)[0].length);
+  if (dc.title === null && title === null && after.trim() !== '' && !after.trim().startsWith('(')) return null;
+  return { label, dest, title, consumed };
+}
+
+function parseDefDest(s, allowIndent) {
   let p = 0;
   const len = s.length;
   while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
+  if (p >= len) return null;
+  if (s[p] === '\n' && !allowIndent) return null;
   let dest = '';
   if (s[p] === '<') {
     p++;
-    while (p < len && s[p] !== '>' && s[p] !== '\n' && s[p] !== '<') { dest += s[p]; p++; }
+    while (p < len && s[p] !== '>' && s[p] !== '<' && s[p] !== '\n') { dest += s[p]; p++; }
     if (s[p] !== '>') return null;
     p++;
   } else {
@@ -290,38 +355,46 @@ function parseDefRest(s) {
     }
     if (dest === '') return null;
   }
-  let title = null;
+  return { p, dest };
+}
+
+function parseDefRest(s, allowIndent) {
+  const dd = parseDefDest(s, allowIndent);
+  if (!dd) return null;
+  let p = dd.p;
+  const dest = dd.dest;
+  const len = s.length;
   while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
-  if (p < len && s[p] !== '\n') {
-    const q = s[p];
-    const close = q === '(' ? ')' : q;
-    if (q === '"' || q === "'" || q === '(') {
-      p++;
-      let t = '';
-      let ok = false;
-      while (p < len) {
-        const c = s[p];
-        if (c === '\\' && p + 1 < len) { t += c + s[p + 1]; p += 2; continue; }
-        if (c === close) { ok = true; p++; break; }
-        if (q === '(' && c === '(') return null;
-        t += c; p++;
-      }
-      if (!ok) return null;
-      title = t;
-      while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
-    } else return null;
+  if (p < len && s[p] === '\n') {
+    if (allowIndent < 1) return { dest, title: null };
+    p++;
+    while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
   }
+  if (p >= len) return { dest, title: null };
+  const q = s[p];
+  if (q !== '"' && q !== "'" && q !== '(') return { dest, title: null };
+  const close = q === '(' ? ')' : q;
+  p++;
+  let t = '';
+  let ok = false;
+  while (p < len) {
+    const c = s[p];
+    if (c === '\\' && p + 1 < len) { t += c + s[p + 1]; p += 2; continue; }
+    if (c === close) { ok = true; p++; break; }
+    t += c; p++;
+  }
+  if (!ok) return null;
+  const title = t;
   while (p < len && (s[p] === ' ' || s[p] === '\t')) p++;
   if (p < len && s[p] !== '\n') return null;
-  if (title !== null) return { dest, title };
-  return { dest, title: null };
+  return { dest, title };
 }
 
 function collectDefs(lines, defs) {
   let i = 0;
   const n = lines.length;
   while (i < n) {
-    const d = parseLinkDef(lines, i, n);
+    const d = tryDefSeq(lines, i, false);
     if (d) {
       const key = d.label.trim().replace(/\s+/g, ' ').toLowerCase();
       if (!(key in defs)) defs[key] = { dest: d.dest, title: d.title };
@@ -338,7 +411,7 @@ export function blocks(src, defs = {}) {
   const n = lines.length;
   collectDefs(lines, defs);
   while (i < n) {
-    const d0 = parseLinkDef(lines, i, n);
+    const d0 = tryDefSeq(lines, i, false);
     if (d0) { i += d0.consumed; continue; }
     if (lines[i].trim() === '') { i++; continue; }
     const line = lines[i];
@@ -404,8 +477,19 @@ export function blocks(src, defs = {}) {
     } else if (htmlBlockStart(line)) {
       const type = htmlBlockStart(line);
       const kept = [];
-      while (i < n && lines[i].trim() !== '') { kept.push(lines[i]); i++; }
-      out.push(renderHtmlBlock(consumeHtmlBlock(kept, 0, kept.length, type).out, defs));
+      let sawBlank = false;
+      while (i < n) {
+        if (lines[i].trim() === '') {
+          if (type <= 5) { i++; sawBlank = true; continue; }
+          let j = i;
+          while (j < n && lines[j].trim() === '') j++;
+          if (j < n && !/^ {0,3}<\//.test(lines[j])) { kept.push(''); i = j; continue; }
+          break;
+        }
+        kept.push(lines[i]); i++;
+      }
+      const r = consumeHtmlBlock(kept, 0, kept.length, type);
+      out.push(renderHtmlBlock(r.out, defs));
     } else if (isHr(line)) {
       i++;
       out.push('<hr>\n');
